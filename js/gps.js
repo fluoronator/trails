@@ -63,7 +63,7 @@ if (navigator.geolocation) {
         map.setView(userLocation, 14);
         hasCentered = true;
 
-        setModeLabel("Browse Mode");
+        setModeLabel("Browse Mode centering from gps.js");
       }
 
     },
