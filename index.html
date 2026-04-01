@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Hiking Trail Map - Rotating Map</title>
     
     <!-- MapLibre GL JS -->
@@ -22,7 +21,6 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
             height: 100vh;
-            touch-action: pan-x pan-y;
         }
         
         #map {
@@ -33,17 +31,22 @@
             height: 100%;
         }
         
-        /* UI Controls */
-        .controls {
+        /* Bottom Left Controls */
+        .bottom-left {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            right: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            pointer-events: none;
             z-index: 10;
+            pointer-events: none;
+        }
+        
+        /* Bottom Right Controls */
+        .bottom-right {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10;
+            pointer-events: none;
         }
         
         .elevation-card {
@@ -89,6 +92,7 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             border: 1px solid rgba(255, 255, 255, 0.2);
             transition: transform 0.2s ease;
+            margin-bottom: 12px;
         }
         
         .compass-container:active {
@@ -145,26 +149,7 @@
             z-index: 1;
         }
         
-        .compass-bearing-mark {
-            position: absolute;
-            bottom: 2px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: white;
-            font-size: 9px;
-            font-weight: bold;
-            z-index: 1;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-        }
-        
-        /* Rotation Lock Button */
-        .lock-button-container {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            z-index: 10;
-        }
-        
+        /* Lock Button */
         .lock-button {
             background: rgba(0, 0, 0, 0.75);
             backdrop-filter: blur(10px);
@@ -271,6 +256,7 @@
                 left: 18px;
                 height: 28px;
                 top: 6px;
+                transform-origin: center 20px;
             }
             
             .lock-button {
@@ -282,39 +268,13 @@
                 height: 20px;
             }
         }
-        
-        /* User location marker */
-        .user-location-marker {
-            position: relative;
-        }
-        
-        .user-location-dot {
-            width: 24px;
-            height: 24px;
-            background: #007AFF;
-            border-radius: 50%;
-            border: 3px solid white;
-            box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.3);
-        }
-        
-        .user-location-direction {
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-            border-bottom: 14px solid #007AFF;
-            margin-bottom: 4px;
-        }
     </style>
 </head>
 <body>
     <div id="map"></div>
     
-    <div class="controls">
+    <!-- Bottom Left Controls -->
+    <div class="bottom-left">
         <div class="elevation-card">
             <div class="elevation-label">ELEVATION</div>
             <div class="elevation-value">
@@ -322,18 +282,18 @@
                 <span class="elevation-unit">ft</span>
             </div>
         </div>
+    </div>
+    
+    <!-- Bottom Right Controls -->
+    <div class="bottom-right">
         <div class="compass-container" id="compassButton">
             <div class="compass">
                 <div class="compass-ring"></div>
                 <div class="compass-north-mark">N</div>
                 <div class="compass-needle" id="compassNeedle"></div>
                 <div class="compass-center"></div>
-                <div class="compass-bearing-mark" id="bearingMark">↑</div>
             </div>
         </div>
-    </div>
-    
-    <div class="lock-button-container">
         <div class="lock-button" id="lockButton">
             <svg viewBox="0 0 24 24">
                 <path d="M12 2C8.13 2 5 5.13 5 9v4c0 .83.67 1.5 1.5 1.5S8 13.83 8 13V9c0-2.76 2.24-5 5-5s5 2.24 5 5v4c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V9c0-3.87-3.13-7-7-7z"/>
@@ -351,7 +311,7 @@
     </div>
 
     <script>
-        // Create a simple raster style with OpenStreetMap tiles (free, no API key)
+        // Simple raster style with OpenStreetMap tiles
         const mapStyle = {
             version: 8,
             sources: {
@@ -392,13 +352,11 @@
         let interactionTimeout = null;
         let isRotationLocked = false;
         let lastGpsSpeed = 0;
-        let lastHeadingSource = 'gps';
-        let trailsAdded = false;
+        let lastHeadingUpdate = 0;
         
         // DOM elements
         const elevationEl = document.getElementById('elevation');
         const compassNeedle = document.getElementById('compassNeedle');
-        const bearingMark = document.getElementById('bearingMark');
         const compassButton = document.getElementById('compassButton');
         const lockButton = document.getElementById('lockButton');
         const infoMessage = document.getElementById('infoMessage');
@@ -408,12 +366,10 @@
         function getEffectiveHeading() {
             // If moving (> 0.5 m/s), use GPS heading
             if (currentGpsHeading !== null && lastGpsSpeed > 0.5) {
-                lastHeadingSource = 'gps';
                 return currentGpsHeading;
             }
             // Otherwise use device orientation if available
             if (deviceOrientation !== null) {
-                lastHeadingSource = 'compass';
                 return deviceOrientation;
             }
             return null;
@@ -424,18 +380,16 @@
             const heading = getEffectiveHeading();
             
             if (heading !== null) {
-                // Update compass needle (always points to north)
+                // Update compass needle (always points to north relative to device)
                 compassNeedle.style.transform = `rotate(${heading}deg)`;
                 
-                // Update bearing mark (shows which way is up on map)
-                const mapBearing = map.getBearing();
-                const relativeBearing = (heading - mapBearing + 360) % 360;
-                bearingMark.style.transform = `rotate(${relativeBearing}deg)`;
-                bearingMark.textContent = relativeBearing < 45 || relativeBearing > 315 ? '↑' : '↗';
-                
                 // Update map rotation if not locked and not interacting
-                if (!isRotationLocked && !isUserInteracting && lastHeadingSource === 'gps') {
-                    map.setBearing(heading);
+                if (!isRotationLocked && !isUserInteracting) {
+                    const currentBearing = map.getBearing();
+                    // Smooth rotation - only update if heading changed significantly
+                    if (Math.abs(currentBearing - heading) > 1) {
+                        map.setBearing(heading);
+                    }
                 }
             }
         }
@@ -455,13 +409,13 @@
                             .then(permissionState => {
                                 if (permissionState === 'granted') {
                                     window.addEventListener('deviceorientation', handleOrientation);
-                                    infoMessage.textContent = '🧭 Compass enabled';
+                                    infoMessage.textContent = '🧭 Compass enabled - map will rotate with you';
                                     infoMessage.style.opacity = '1';
                                     setTimeout(() => {
-                                        if (infoMessage.textContent === '🧭 Compass enabled') {
+                                        if (infoMessage.textContent === '🧭 Compass enabled - map will rotate with you') {
                                             infoMessage.style.opacity = '0';
                                         }
-                                    }, 2000);
+                                    }, 3000);
                                 }
                             })
                             .catch(console.error);
@@ -470,11 +424,17 @@
                     document.body.addEventListener('click', requestCompassPermission);
                     document.body.addEventListener('touchstart', requestCompassPermission);
                     
-                    infoMessage.textContent = '📱 Tap screen to enable compass';
+                    infoMessage.textContent = '📱 Tap screen to enable compass rotation';
                     infoMessage.style.opacity = '1';
                 } else {
                     // Android and others
                     window.addEventListener('deviceorientation', handleOrientation);
+                    infoMessage.textContent = '🧭 Compass active - map will rotate with you';
+                    setTimeout(() => {
+                        if (infoMessage.textContent === '🧭 Compass active - map will rotate with you') {
+                            infoMessage.style.opacity = '0';
+                        }
+                    }, 3000);
                 }
             }
         }
@@ -482,20 +442,9 @@
         // Handle device orientation events
         function handleOrientation(event) {
             let alpha = event.alpha;
-            if (alpha !== null) {
+            if (alpha !== null && !isNaN(alpha)) {
                 deviceOrientation = alpha;
                 updateHeadingAndRotation();
-                
-                // Show status when compass takes over
-                if (lastHeadingSource !== 'compass' && lastGpsSpeed <= 0.5) {
-                    infoMessage.textContent = '🧭 Using compass (stationary)';
-                    infoMessage.style.opacity = '1';
-                    setTimeout(() => {
-                        if (infoMessage.textContent === '🧭 Using compass (stationary)') {
-                            infoMessage.style.opacity = '0';
-                        }
-                    }, 2000);
-                }
             }
         }
         
@@ -505,15 +454,13 @@
             lockButton.classList.remove('active');
             map.setBearing(0);
             
-            infoMessage.textContent = '🗺️ Map set to north-up';
+            infoMessage.textContent = '🗺️ Map set to north-up (rotation off)';
             infoMessage.style.opacity = '1';
             setTimeout(() => {
-                if (infoMessage.textContent === '🗺️ Map set to north-up') {
+                if (infoMessage.textContent === '🗺️ Map set to north-up (rotation off)') {
                     infoMessage.style.opacity = '0';
                 }
             }, 2000);
-            
-            updateHeadingAndRotation();
         }
         
         // Toggle rotation lock
@@ -521,13 +468,13 @@
             isRotationLocked = !isRotationLocked;
             if (isRotationLocked) {
                 lockButton.classList.add('active');
-                infoMessage.textContent = '🔒 Map rotation locked';
+                infoMessage.textContent = '🔒 Map rotation locked - manual mode';
             } else {
                 lockButton.classList.remove('active');
-                infoMessage.textContent = '🔓 Map rotation unlocked';
-                // Re-apply current heading
+                infoMessage.textContent = '🔓 Map rotation unlocked - auto rotate with direction';
+                // Re-apply current heading immediately
                 const heading = getEffectiveHeading();
-                if (heading !== null && lastHeadingSource === 'gps') {
+                if (heading !== null) {
                     map.setBearing(heading);
                 }
             }
@@ -548,8 +495,8 @@
                     const heading = getEffectiveHeading();
                     map.flyTo({
                         center: [currentLocation.lng, currentLocation.lat],
-                        bearing: (!isRotationLocked && heading !== null && lastHeadingSource === 'gps') ? heading : map.getBearing(),
-                        zoom: map.getZoom(),
+                        bearing: (!isRotationLocked && heading !== null) ? heading : map.getBearing(),
+                        zoom: Math.max(map.getZoom(), 16),
                         duration: 1000,
                         essential: true
                     });
@@ -560,15 +507,45 @@
         // Update user location marker
         function updateUserLocation(lat, lng, heading) {
             if (!userMarker) {
+                // Create custom marker with proper transform-origin
                 const el = document.createElement('div');
-                el.className = 'user-location-marker';
-                el.innerHTML = `
-                    <div class="user-location-direction"></div>
-                    <div class="user-location-dot"></div>
-                `;
                 el.style.position = 'relative';
                 el.style.width = '24px';
                 el.style.height = '24px';
+                el.style.cursor = 'pointer';
+                
+                // Direction triangle (pointing up, will rotate)
+                const direction = document.createElement('div');
+                direction.style.position = 'absolute';
+                direction.style.bottom = '100%';
+                direction.style.left = '50%';
+                direction.style.transform = 'translateX(-50%)';
+                direction.style.transformOrigin = 'center bottom';
+                direction.style.width = '0';
+                direction.style.height = '0';
+                direction.style.borderLeft = '8px solid transparent';
+                direction.style.borderRight = '8px solid transparent';
+                direction.style.borderBottom = '14px solid #007AFF';
+                direction.style.marginBottom = '4px';
+                direction.style.transition = 'transform 0.1s ease';
+                
+                // Blue dot
+                const dot = document.createElement('div');
+                dot.style.width = '24px';
+                dot.style.height = '24px';
+                dot.style.backgroundColor = '#007AFF';
+                dot.style.borderRadius = '50%';
+                dot.style.border = '3px solid white';
+                dot.style.boxShadow = '0 0 0 2px rgba(0, 122, 255, 0.3)';
+                dot.style.position = 'absolute';
+                dot.style.top = '0';
+                dot.style.left = '0';
+                
+                el.appendChild(direction);
+                el.appendChild(dot);
+                
+                // Store reference to direction element for updates
+                el._directionElement = direction;
                 
                 userMarker = new maplibregl.Marker({ element: el, rotationAlignment: 'map' })
                     .setLngLat([lng, lat])
@@ -577,12 +554,9 @@
                 userMarker.setLngLat([lng, lat]);
             }
             
-            // Update direction indicator
-            if (heading !== null && userMarker.getElement()) {
-                const directionEl = userMarker.getElement().querySelector('.user-location-direction');
-                if (directionEl) {
-                    directionEl.style.transform = `translateX(-50%) rotate(${heading}deg)`;
-                }
+            // Update direction indicator rotation
+            if (heading !== null && userMarker.getElement()._directionElement) {
+                userMarker.getElement()._directionElement.style.transform = `translateX(-50%) rotate(${heading}deg)`;
             }
             
             // Center on first location
@@ -713,13 +687,13 @@
                     loadingOverlay.style.display = 'none';
                 }, 500);
                 
-                infoMessage.textContent = '✅ Trails loaded! GPS active';
+                infoMessage.textContent = '✅ Trails loaded! Map will rotate with your direction';
                 infoMessage.style.opacity = '1';
                 setTimeout(() => {
-                    if (infoMessage.textContent === '✅ Trails loaded! GPS active') {
+                    if (infoMessage.textContent === '✅ Trails loaded! Map will rotate with your direction') {
                         infoMessage.style.opacity = '0';
                     }
-                }, 3000);
+                }, 4000);
                 
             } catch (error) {
                 console.error('Error loading trail data:', error);
@@ -763,17 +737,6 @@
                     if (heading !== null && heading >= 0) {
                         currentGpsHeading = heading;
                         updateHeadingAndRotation();
-                        
-                        // Show status when GPS heading is active and moving
-                        if (lastGpsSpeed > 0.5 && lastHeadingSource !== 'gps') {
-                            infoMessage.textContent = '📍 Using GPS heading (moving)';
-                            infoMessage.style.opacity = '1';
-                            setTimeout(() => {
-                                if (infoMessage.textContent === '📍 Using GPS heading (moving)') {
-                                    infoMessage.style.opacity = '0';
-                                }
-                            }, 2000);
-                        }
                     }
                     
                     // Update marker with effective heading
@@ -787,16 +750,14 @@
                     let msg = '';
                     switch(error.code) {
                         case error.PERMISSION_DENIED:
-                            msg = '📍 Please enable location services to see your position on the trail';
+                            msg = '📍 Please enable location services';
                             break;
                         case error.POSITION_UNAVAILABLE:
-                            msg = '📍 GPS signal unavailable - check sky view';
+                            msg = '📍 GPS signal unavailable';
                             break;
                         case error.TIMEOUT:
                             msg = '📍 Location request timed out';
                             break;
-                        default:
-                            msg = '📍 Location error';
                     }
                     infoMessage.textContent = msg;
                     infoMessage.style.opacity = '1';
@@ -835,6 +796,21 @@
                 infoMessage.style.opacity = '0';
             }
         }, 5000);
+        
+        // Continuous update loop for smooth rotation
+        function rotationLoop() {
+            if (!isRotationLocked && !isUserInteracting) {
+                const heading = getEffectiveHeading();
+                if (heading !== null) {
+                    const currentBearing = map.getBearing();
+                    if (Math.abs(currentBearing - heading) > 0.5) {
+                        map.setBearing(heading);
+                    }
+                }
+            }
+            requestAnimationFrame(rotationLoop);
+        }
+        rotationLoop();
     </script>
 </body>
 </html>
