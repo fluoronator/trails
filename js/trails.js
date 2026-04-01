@@ -70,7 +70,7 @@ fetch('data/parks.json')
                     layer.setText(p.title, {
                         repeat: false,
                         center: true,
-                        offset: 6,   // 👈 moves text off the line
+                        offset: -10,   // 👈 moves text off the line
 
                         attributes: {
                             fill: p.stroke || "#00ff88",
