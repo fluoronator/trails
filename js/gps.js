@@ -5,7 +5,7 @@
 // 🔧 EASY TESTING CONTROL
 // Set to 90000 to force Hiking Mode from far away
 // Set to 3200 for real behavior
-window.MODE_DISTANCE = 90000;
+window.MODE_DISTANCE = 3200;
 
 let userMarker = null;
 let hasCentered = false;
