@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Hiking Trail Map</title>
+    <title>Hiking Trail Map - Rotating Map</title>
     
     <!-- MapLibre GL JS -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -183,7 +183,7 @@
         
         .debug-panel {
             position: absolute;
-            bottom: 100px;
+            top: 80px;
             left: 20px;
             background: rgba(0, 0, 0, 0.8);
             padding: 8px 12px;
@@ -232,21 +232,21 @@
     </div>
     
     <div class="debug-panel" id="debugPanel">
-        Heading: --° | Map Bearing: --°
+        Heading: --° | Map: --°
     </div>
     
     <div class="info-message" id="infoMessage">📍 Share location to see your position</div>
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-content">
             <div class="spinner"></div>
-            <div>Loading trail map...</div>
+            <div>Loading map...</div>
         </div>
     </div>
 
     <script>
-        // Wait for DOM to be ready
+        // Wait for DOM
         document.addEventListener('DOMContentLoaded', () => {
-            // Simple raster style with OpenStreetMap tiles
+            // Simple map style with OpenStreetMap
             const mapStyle = {
                 version: 8,
                 sources: {
@@ -273,11 +273,9 @@
                 center: [-120.0, 37.5],
                 zoom: 14,
                 pitch: 0,
-                bearing: 0,
-                antialias: true
+                bearing: 0
             });
             
-            // Global variables
             let userMarker = null;
             let currentLocation = null;
             let currentHeading = 0;
@@ -285,8 +283,8 @@
             let isUserInteracting = false;
             let interactionTimeout = null;
             let mapLoaded = false;
+            let rotationAnimationId = null;
             
-            // DOM elements
             const elevationEl = document.getElementById('elevation');
             const compassNeedle = document.getElementById('compassNeedle');
             const compassButton = document.getElementById('compassButton');
@@ -294,45 +292,33 @@
             const loadingOverlay = document.getElementById('loadingOverlay');
             const debugPanel = document.getElementById('debugPanel');
             
-            // Update debug panel
-            function updateDebugPanel() {
+            function updateDebug() {
                 const mapBearing = map.getBearing();
-                debugPanel.innerHTML = `Heading: ${Math.round(currentHeading)}° | Map Bearing: ${Math.round(mapBearing)}°`;
+                debugPanel.innerHTML = `Heading: ${Math.round(currentHeading)}° | Map: ${Math.round(mapBearing)}°`;
             }
             
-            // FORCE map rotation - multiple approaches
-            function rotateMapToHeading() {
-                if (!isUserInteracting && mapLoaded) {
-                    try {
-                        // Method 1: Standard setBearing
+            // The key rotation function
+            function rotateMap() {
+                if (mapLoaded && !isUserInteracting) {
+                    if (Math.abs(map.getBearing() - currentHeading) > 0.5) {
                         map.setBearing(currentHeading);
-                        
-                        // Method 2: Also try jumpto as fallback
-                        map.jumpTo({
-                            bearing: currentHeading
-                        });
-                        
-                        updateDebugPanel();
-                    } catch (e) {
-                        console.error('Rotation error:', e);
+                        updateDebug();
                     }
                 }
             }
             
-            // Reset to north-up
-            function resetToNorthUp() {
+            function resetToNorth() {
                 map.setBearing(0);
-                infoMessage.textContent = '🗺️ Map set to north-up';
+                infoMessage.textContent = '🗺️ Map north-up';
                 infoMessage.style.opacity = '1';
                 setTimeout(() => {
-                    if (infoMessage.textContent === '🗺️ Map set to north-up') {
+                    if (infoMessage.textContent === '🗺️ Map north-up') {
                         infoMessage.style.opacity = '0';
                     }
-                }, 2000);
-                updateDebugPanel();
+                }, 1500);
+                updateDebug();
             }
             
-            // Auto-recenter timer
             function resetInteractionTimer() {
                 if (interactionTimeout) clearTimeout(interactionTimeout);
                 isUserInteracting = true;
@@ -344,19 +330,17 @@
                             center: [currentLocation.lng, currentLocation.lat],
                             bearing: currentHeading,
                             zoom: Math.max(map.getZoom(), 16),
-                            duration: 1000,
-                            essential: true
+                            duration: 800
                         });
                     }
+                    rotateMap();
                 }, 3000);
             }
             
-            // Update compass needle
-            function updateCompassNeedle() {
+            function updateCompass() {
                 compassNeedle.style.transform = `rotate(${currentHeading}deg)`;
             }
             
-            // Create simple blue dot marker
             function updateUserLocation(lat, lng) {
                 if (!userMarker) {
                     const el = document.createElement('div');
@@ -378,179 +362,71 @@
                 }
             }
             
-            // Start device orientation
-            function startDeviceOrientation() {
-                if (window.DeviceOrientationEvent) {
-                    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                        let permissionRequested = false;
-                        
-                        const requestCompassPermission = () => {
-                            if (permissionRequested) return;
-                            permissionRequested = true;
-                            
-                            DeviceOrientationEvent.requestPermission()
-                                .then(permissionState => {
-                                    if (permissionState === 'granted') {
-                                        window.addEventListener('deviceorientation', handleOrientation);
-                                        infoMessage.textContent = '🧭 Compass active - map rotates with you';
-                                        infoMessage.style.opacity = '1';
-                                        setTimeout(() => {
-                                            if (infoMessage.textContent === '🧭 Compass active - map rotates with you') {
-                                                infoMessage.style.opacity = '0';
-                                            }
-                                        }, 3000);
-                                    }
-                                })
-                                .catch(console.error);
-                        };
-                        
-                        document.body.addEventListener('click', requestCompassPermission);
-                        document.body.addEventListener('touchstart', requestCompassPermission);
-                        infoMessage.textContent = '📱 Tap screen to enable compass rotation';
-                        infoMessage.style.opacity = '1';
-                    } else {
-                        window.addEventListener('deviceorientation', handleOrientation);
-                        infoMessage.textContent = '🧭 Compass active - map rotates with you';
-                        setTimeout(() => {
-                            if (infoMessage.textContent === '🧭 Compass active - map rotates with you') {
-                                infoMessage.style.opacity = '0';
-                            }
-                        }, 3000);
-                    }
+            // Device orientation with iOS support
+            function startCompass() {
+                if (!window.DeviceOrientationEvent) {
+                    console.log('No device orientation support');
+                    return;
                 }
-            }
-            
-            // Handle orientation
-            let lastHeadingLog = 0;
-            function handleOrientation(event) {
-                let alpha = event.alpha;
-                if (alpha !== null && !isNaN(alpha)) {
-                    currentHeading = alpha;
-                    updateCompassNeedle();
-                    rotateMapToHeading();
-                    updateDebugPanel();
-                    
-                    if (Math.abs(currentHeading - lastHeadingLog) > 30) {
-                        console.log('Compass heading:', currentHeading, 'Map bearing:', map.getBearing());
-                        lastHeadingLog = currentHeading;
-                    }
-                }
-            }
-            
-            // Load GeoJSON
-            async function loadTrailData() {
-                try {
-                    const response = await fetch('data/trails.geojson');
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const geojson = await response.json();
-                    
-                    const bounds = new maplibregl.LngLatBounds();
-                    
-                    map.addSource('trails', {
-                        type: 'geojson',
-                        data: geojson
-                    });
-                    
-                    map.addLayer({
-                        id: 'trails',
-                        type: 'line',
-                        source: 'trails',
-                        paint: {
-                            'line-color': [
-                                'match',
-                                ['get', 'stroke'],
-                                '#FF0000', '#FF0000',
-                                '#00FF00', '#00FF00',
-                                '#0000FF', '#0000FF',
-                                '#FFFF00', '#FFFF00',
-                                '#FF00FF', '#FF00FF',
-                                '#00FFFF', '#00FFFF',
-                                '#800000', '#800000',
-                                '#008000', '#008000',
-                                '#000080', '#000080',
-                                '#4CAF50', '#4CAF50',
-                                '#FF6B6B', '#FF6B6B',
-                                '#4A90E2', '#4A90E2',
-                                '#FFD93D', '#FFD93D',
-                                '#2C3E50'
-                            ],
-                            'line-width': 4,
-                            'line-opacity': 0.9
+                
+                const handleOrientation = (event) => {
+                    let heading = event.webkitCompassHeading || event.alpha;
+                    if (heading !== null && !isNaN(heading)) {
+                        // webkitCompassHeading gives absolute heading (0 = north)
+                        if (event.webkitCompassHeading !== undefined) {
+                            heading = event.webkitCompassHeading;
                         }
-                    });
-                    
-                    const poiFeatures = geojson.features.filter(f => f.geometry.type === 'Point');
-                    
-                    if (poiFeatures.length > 0) {
-                        map.addSource('pois', {
-                            type: 'geojson',
-                            data: {
-                                type: 'FeatureCollection',
-                                features: poiFeatures
-                            }
-                        });
-                        
-                        map.addLayer({
-                            id: 'pois',
-                            type: 'circle',
-                            source: 'pois',
-                            paint: {
-                                'circle-radius': 8,
-                                'circle-color': '#FF6B35',
-                                'circle-stroke-width': 2,
-                                'circle-stroke-color': '#FFFFFF'
-                            }
-                        });
-                        
-                        map.on('click', 'pois', (e) => {
-                            const coordinates = e.features[0].geometry.coordinates.slice();
-                            const name = e.features[0].properties.name || e.features[0].properties.title || 'Point of Interest';
-                            new maplibregl.Popup()
-                                .setLngLat(coordinates)
-                                .setHTML(`<strong>${name}</strong>`)
-                                .addTo(map);
-                        });
+                        currentHeading = heading;
+                        updateCompass();
+                        rotateMap();
+                        updateDebug();
                     }
+                };
+                
+                // iOS requires permission
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    let permissionGranted = false;
                     
-                    geojson.features.forEach(feature => {
-                        if (feature.geometry.type === 'LineString') {
-                            feature.geometry.coordinates.forEach(coord => bounds.extend([coord[0], coord[1]]));
-                        } else if (feature.geometry.type === 'Point') {
-                            bounds.extend([feature.geometry.coordinates[0], feature.geometry.coordinates[1]]);
-                        }
-                    });
+                    const requestPermission = () => {
+                        if (permissionGranted) return;
+                        permissionGranted = true;
+                        
+                        DeviceOrientationEvent.requestPermission()
+                            .then(permissionState => {
+                                if (permissionState === 'granted') {
+                                    window.addEventListener('deviceorientation', handleOrientation);
+                                    infoMessage.textContent = '🧭 Compass active - map rotates!';
+                                    infoMessage.style.opacity = '1';
+                                    setTimeout(() => {
+                                        if (infoMessage.textContent === '🧭 Compass active - map rotates!') {
+                                            infoMessage.style.opacity = '0';
+                                        }
+                                    }, 3000);
+                                    console.log('Compass permission granted');
+                                }
+                            })
+                            .catch(err => console.error('Compass error:', err));
+                    };
                     
-                    if (bounds && !bounds.isEmpty()) {
-                        map.fitBounds(bounds, { padding: 50, duration: 1000 });
-                    }
-                    
-                    loadingOverlay.style.opacity = '0';
-                    setTimeout(() => {
-                        loadingOverlay.style.display = 'none';
-                    }, 500);
-                    
-                    infoMessage.textContent = '✅ Trails loaded! Map rotates with your direction';
+                    document.body.addEventListener('click', requestPermission);
+                    document.body.addEventListener('touchstart', requestPermission);
+                    infoMessage.textContent = '📱 Tap screen to enable compass rotation';
                     infoMessage.style.opacity = '1';
+                } else {
+                    // Android
+                    window.addEventListener('deviceorientation', handleOrientation);
+                    infoMessage.textContent = '🧭 Compass active - map rotates!';
                     setTimeout(() => {
-                        if (infoMessage.textContent === '✅ Trails loaded! Map rotates with your direction') {
+                        if (infoMessage.textContent === '🧭 Compass active - map rotates!') {
                             infoMessage.style.opacity = '0';
                         }
-                    }, 4000);
-                    
-                } catch (error) {
-                    console.error('Error:', error);
-                    loadingOverlay.innerHTML = `
-                        <div class="loading-content">
-                            <div style="font-size: 48px;">⚠️</div>
-                            <div>Error loading trail data</div>
-                            <div style="font-size: 12px; margin-top: 8px;">Make sure data/trails.geojson exists</div>
-                        </div>
-                    `;
+                    }, 3000);
+                    console.log('Compass listener added');
                 }
             }
             
-            // Start GPS tracking
-            function startLocationTracking() {
+            // GPS tracking
+            function startGPS() {
                 if (!navigator.geolocation) {
                     infoMessage.textContent = '❌ GPS not supported';
                     return;
@@ -563,8 +439,6 @@
                         
                         if (altitude !== null) {
                             elevationEl.textContent = Math.round(altitude * 3.28084);
-                        } else {
-                            elevationEl.textContent = '---';
                         }
                         
                         updateUserLocation(latitude, longitude);
@@ -572,8 +446,8 @@
                     },
                     (error) => {
                         let msg = '';
-                        if (error.code === 1) msg = '📍 Please enable location services';
-                        else if (error.code === 2) msg = '📍 GPS signal unavailable';
+                        if (error.code === 1) msg = '📍 Enable location services';
+                        else if (error.code === 2) msg = '📍 GPS signal weak';
                         else msg = '📍 Location error';
                         infoMessage.textContent = msg;
                         infoMessage.style.opacity = '1';
@@ -582,44 +456,103 @@
                 );
             }
             
+            // Load trails
+            async function loadTrails() {
+                try {
+                    // Try to load the GeoJSON
+                    const response = await fetch('data/trails.geojson');
+                    if (response.ok) {
+                        const geojson = await response.json();
+                        map.addSource('trails', {
+                            type: 'geojson',
+                            data: geojson
+                        });
+                        map.addLayer({
+                            id: 'trails',
+                            type: 'line',
+                            source: 'trails',
+                            paint: {
+                                'line-color': '#4CAF50',
+                                'line-width': 4,
+                                'line-opacity': 0.9
+                            }
+                        });
+                        
+                        // Add POIs
+                        const poiFeatures = geojson.features.filter(f => f.geometry.type === 'Point');
+                        if (poiFeatures.length > 0) {
+                            map.addSource('pois', {
+                                type: 'geojson',
+                                data: { type: 'FeatureCollection', features: poiFeatures }
+                            });
+                            map.addLayer({
+                                id: 'pois',
+                                type: 'circle',
+                                source: 'pois',
+                                paint: {
+                                    'circle-radius': 8,
+                                    'circle-color': '#FF6B35',
+                                    'circle-stroke-width': 2,
+                                    'circle-stroke-color': '#FFFFFF'
+                                }
+                            });
+                            
+                            map.on('click', 'pois', (e) => {
+                                const name = e.features[0].properties.name || 'Point of Interest';
+                                new maplibregl.Popup()
+                                    .setLngLat(e.features[0].geometry.coordinates)
+                                    .setHTML(`<strong>${name}</strong>`)
+                                    .addTo(map);
+                            });
+                        }
+                        
+                        console.log('Trails loaded');
+                    } else {
+                        console.log('No trails file found - map will still work');
+                    }
+                } catch (err) {
+                    console.log('No trails file found:', err);
+                }
+                
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    loadingOverlay.style.display = 'none';
+                }, 500);
+            }
+            
             // Map events
             map.on('load', () => {
                 mapLoaded = true;
-                loadTrailData();
-                console.log('Map loaded - rotation should work now');
+                loadTrails();
+                console.log('Map loaded - rotation ready');
             });
             
             map.on('movestart', resetInteractionTimer);
             map.on('zoomstart', resetInteractionTimer);
             map.on('rotatestart', resetInteractionTimer);
             
-            compassButton.addEventListener('click', resetToNorthUp);
+            compassButton.addEventListener('click', resetToNorth);
             
-            startLocationTracking();
-            startDeviceOrientation();
+            startGPS();
+            startCompass();
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
             
-            setTimeout(() => {
-                if (infoMessage.style.opacity !== '0') {
-                    infoMessage.style.opacity = '0';
+            // Animation loop for smooth rotation
+            function animate() {
+                if (mapLoaded && !isUserInteracting && currentHeading !== null) {
+                    const currentBearing = map.getBearing();
+                    if (Math.abs(currentBearing - currentHeading) > 0.5) {
+                        map.setBearing(currentHeading);
+                        updateDebug();
+                    }
                 }
-            }, 5000);
+                requestAnimationFrame(animate);
+            }
+            animate();
             
-            // Test rotation manually when map loads (to verify setBearing works)
-            map.on('load', () => {
-                setTimeout(() => {
-                    console.log('Testing manual rotation to 45°...');
-                    map.setBearing(45);
-                    setTimeout(() => {
-                        console.log('Testing manual rotation to 90°...');
-                        map.setBearing(90);
-                        setTimeout(() => {
-                            console.log('Returning to heading from compass');
-                            map.setBearing(currentHeading);
-                        }, 1000);
-                    }, 1000);
-                }, 2000);
-            });
+            setTimeout(() => {
+                infoMessage.style.opacity = '0';
+            }, 5000);
         });
     </script>
 </body>
