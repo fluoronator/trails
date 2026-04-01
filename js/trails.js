@@ -15,15 +15,40 @@ fetch('data/parks.json')
 .then(data => {
 
     let trails = L.geoJSON(data, {
-        style: function(feature) {
-    let p = feature.properties || {};
 
-    return {
-        color: p.stroke || "#00ff88",
-        weight: p["stroke-width"] || 4,
-        opacity: p["stroke-opacity"] || 1
-    };
-}
+        // 🎨 Use CalTopo styling
+        style: function(feature) {
+            let p = feature.properties || {};
+
+            return {
+                color: p.stroke || "#00ff88",
+                weight: Number(p["stroke-width"]) || 4,
+                opacity: p["stroke-opacity"] || 1
+            };
+        },
+
+        // 📍 Handle POIs / markers
+        pointToLayer: function(feature, latlng) {
+            let p = feature.properties || {};
+
+            return L.circleMarker(latlng, {
+                radius: 6,
+                color: p["marker-color"] || "#ffffff",
+                fillColor: p["marker-color"] || "#ffffff",
+                fillOpacity: 1,
+                weight: 1
+            });
+        },
+
+        // 🏷 Optional: attach popup with title
+        onEachFeature: function(feature, layer) {
+            let p = feature.properties || {};
+
+            if (p.title) {
+                layer.bindPopup(p.title);
+            }
+        }
+
     }).addTo(map);
 
     let bounds = trails.getBounds();
