@@ -1,118 +1,117 @@
-window.trailCenter = null;
+// trails.js
 
-// Load parks list
-fetch('data/parks.json')
-.then(r => r.json())
-.then(parks => {
+fetch("data/parks.json")
+    .then(res => res.json())
+    .then(parks => {
 
-    let park = parks[0];
-    return fetch(park.file);
+        let park = parks[0];
 
-})
-.then(r => r.json())
-.then(data => {
+        // Load trail GeoJSON
+        fetch(`data/trails/${park.file}`)
+            .then(res => res.json())
+            .then(data => {
 
-    let trails = L.geoJSON(data, {
+                const trailLayer = L.geoJSON(data, {
 
-        // 🎨 Use CalTopo styling
-        style: function(feature) {
-            let p = feature.properties || {};
+                    style: function (feature) {
+                        const p = feature.properties || {};
+                        return {
+                            color: p.stroke || "#00ff88",
+                            weight: Number(p["stroke-width"]) || 4,
+                            opacity: p["stroke-opacity"] || 1
+                        };
+                    },
 
-            return {
-                color: p.stroke || "#00ff88",
-                weight: Number(p["stroke-width"]) || 4,
-                opacity: p["stroke-opacity"] || 1
-            };
-        },
+                    pointToLayer: function (feature, latlng) {
+                        const p = feature.properties || {};
 
-        // 📍 Default red pins
-        pointToLayer: function(feature, latlng) {
+                        const marker = L.marker(latlng);
 
-            let redIcon = L.icon({
-                iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-                shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+                        if (p.title) {
+                            marker.bindTooltip(p.title, {
+                                permanent: false,
+                                direction: "right",
+                                offset: [10, 0],
+                                className: "poi-label"
+                            });
+                        }
 
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
-            });
+                        return marker;
+                    },
 
-            return L.marker(latlng, { icon: redIcon });
-        },
+                    onEachFeature: function (feature, layer) {
+                        const p = feature.properties || {};
 
-        onEachFeature: function(feature, layer) {
-            let p = feature.properties || {};
+                        // Trail labels (curved)
+                        if (feature.geometry.type === "LineString" && p.title) {
+                            layer.setText(p.title, {
+                                repeat: false,
+                                center: true,
+                                offset: 6,
+                                attributes: {
+                                    fill: p.stroke || "#00ff88",
+                                    "font-size": "14",
+                                    "font-weight": "bold",
+                                    "letter-spacing": "1",
+                                    "word-spacing": "2",
+                                    "text-shadow": "0 0 3px white"
+                                }
+                            });
+                        }
+                    }
 
-            // 🟢 POIs
-            if (feature.geometry.type === "Point") {
+                }).addTo(map);
 
-                if (p.title) {
+                // Fit map to trails
+                map.fitBounds(trailLayer.getBounds());
 
-                    layer.bindTooltip(p.title, {
-                        permanent: false,
-                        direction: "right",
-                        offset: [10, 0],
-                        className: "poi-label"
-                    });
+                // --- POI label visibility ---
+                function updatePOILabels() {
+                    const zoom = map.getZoom();
 
-                    layer.bindPopup("<b>" + p.title + "</b>");
-                }
-            }
-
-            // 🟡 TRAILS — curved text
-            if (feature.geometry.type === "LineString") {
-
-                if (p.title && layer.setText) {
-
-                    layer.setText(p.title, {
-                        repeat: false,
-                        center: true,
-                        offset: 6,              // slight offset from line
-                        orientation: 0,
-
-                        attributes: {
-                            fill: p.stroke || "#00ff88",
-                            "font-size": "14",
-                            "font-weight": "bold",
-                            "letter-spacing": "1",   // keeps letters tighter
-                            "word-spacing": "2",
-                            "text-shadow": "0 0 3px white"
+                    trailLayer.eachLayer(layer => {
+                        if (layer.getTooltip) {
+                            if (zoom >= 16) {
+                                layer.openTooltip();
+                            } else {
+                                layer.closeTooltip();
+                            }
                         }
                     });
                 }
-            }
-        }
 
-    }).addTo(map);
+                map.on("zoomend", updatePOILabels);
+                updatePOILabels();
 
-    let bounds = trails.getBounds();
-    window.trailCenter = bounds.getCenter();
+                // =====================================================
+                // ✅ MODE DETECTION (NEW - SAFE ADDITION)
+                // =====================================================
 
-    map.fitBounds(bounds);
+                const modeBox = document.getElementById("modeBox");
 
-    document.getElementById("modeBox").innerHTML = "Browse Mode";
+                // Use park center if available, otherwise fallback to bounds center
+                const parkCenter = park.center
+                    ? L.latLng(park.center[0], park.center[1])
+                    : trailLayer.getBounds().getCenter();
 
-    // 🔍 POI label visibility
-    function updatePOILabels() {
-        let zoom = map.getZoom();
+                const MODE_DISTANCE = 3200; // meters
 
-        trails.eachLayer(layer => {
-            if (layer.getTooltip()) {
-                if (zoom >= 16) {
-                    layer.openTooltip();
-                } else {
-                    layer.closeTooltip();
+                function updateMode() {
+                    const mapCenter = map.getCenter();
+                    const distance = mapCenter.distanceTo(parkCenter);
+
+                    if (distance <= MODE_DISTANCE) {
+                        modeBox.innerText = "Hiking Mode";
+                    } else {
+                        modeBox.innerText = "Browse Mode";
+                    }
                 }
-            }
-        });
-    }
 
-    updatePOILabels();
-    map.on("zoomend", updatePOILabels);
+                // Update on movement
+                map.on("moveend", updateMode);
 
-})
-.catch(err => {
-    document.getElementById("modeBox").innerHTML = "Error loading trails";
-    console.log(err);
-});
+                // Initial set
+                updateMode();
+
+            });
+    });
