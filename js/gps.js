@@ -5,7 +5,7 @@
 // 🔧 EASY TESTING CONTROL
 // Set to 90000 to force Hiking Mode from far away
 // Set to 3200 for real behavior
-window.MODE_DISTANCE = 3200;
+window.MODE_DISTANCE = 90000;
 
 let userMarker = null;
 let hasCentered = false;
@@ -52,9 +52,9 @@ if (navigator.geolocation) {
         let distance = userLocation.distanceTo(window.trailCenter);
 
         if (distance <= window.MODE_DISTANCE) {
-          setModeLabel("Hiking Modex");
+          setModeLabel("Hiking Modey");
         } else {
-          setModeLabel("Browse Modex");
+          setModeLabel("Browse Modey");
         }
       }
 
