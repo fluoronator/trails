@@ -29,7 +29,7 @@ const satelliteLayer = L.tileLayer(
 const map = L.map("map", {
     center: [34.7, -86.9],
     zoom: 13,
-    layers: [standardLayer], // default
+    layers: [standardLayer],
     zoomControl: false
 });
 

@@ -17,6 +17,29 @@
     box-shadow: 0 0 5px rgba(0,0,0,0.3);
 }
 
+/* ✅ Basemap controls (matches modeBox style, positioned below it) */
+#basemap-controls {
+    position: absolute;
+    top: 60px;
+    left: 10px;
+    z-index: 1000;
+    background: white;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+}
+
+#basemap-controls label {
+    display: block;
+    margin-bottom: 4px;
+    cursor: pointer;
+}
+
+#basemap-controls input {
+    margin-right: 6px;
+}
+
 /* POI labels (tight + clean) */
 .leaflet-tooltip.poi-label {
     background: transparent !important;
