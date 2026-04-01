@@ -1,8 +1,13 @@
-
 let mapWrapper = document.getElementById("mapWrapper");
 
 function rotateMap(deg) {
     mapWrapper.style.transform = "rotate(" + (-deg) + "deg)";
+}
+
+// ✅ Check current mode safely
+function isHikingMode() {
+    let modeBox = document.getElementById("modeBox");
+    return modeBox && modeBox.innerText.includes("Hiking");
 }
 
 function handleOrientation(event) {
@@ -17,7 +22,13 @@ function handleOrientation(event) {
     }
 
     if (heading !== undefined) {
-        rotateMap(heading);
+
+        // ✅ ONLY rotate in Hiking Mode
+        if (isHikingMode()) {
+            rotateMap(heading);
+        } else {
+            rotateMap(0); // reset to north-up
+        }
     }
 }
 

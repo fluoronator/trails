@@ -22,9 +22,21 @@
             margin: 0;
         }
 
-        #map {
-            height: 100vh;
+        /* NEW WRAPPER */
+        #mapWrapper {
+            position: fixed;
             width: 100vw;
+            height: 100vh;
+            transform-origin: center center;
+        }
+
+        #map {
+            position: absolute;
+            width: 200vmax;
+            height: 200vmax;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
         }
 
         #modeBox {
@@ -39,7 +51,6 @@
             box-shadow: 0 0 5px rgba(0,0,0,0.3);
         }
 
-        /* ✅ Version label (bottom right) */
         #versionBox {
             position: absolute;
             bottom: 10px;
@@ -57,19 +68,16 @@
 
 <body>
 
-<div id="map"></div>
-<div id="modeBox">Loading...</div>
+<div id="mapWrapper">
+    <div id="map"></div>
+</div>
 
-<!-- ✅ Version display -->
+<div id="modeBox">Loading...</div>
 <div id="versionBox">v10</div>
 
-<!-- Leaflet -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-<!-- Plugin -->
 <script src="https://unpkg.com/leaflet-textpath@1.2.3/leaflet.textpath.js"></script>
 
-<!-- Your JS -->
 <script src="js/map.js?v=1.3"></script>
 <script src="js/trails.js?v=1.3"></script>
 <script src="js/gps.js?v=1.3"></script>
