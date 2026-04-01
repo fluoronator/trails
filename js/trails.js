@@ -43,23 +43,23 @@ fetch('data/parks.json')
             return L.marker(latlng, { icon: redIcon });
         },
 
-        // 🏷 Attach popups using title
+        // 🏷 Attach popups + labels
         onEachFeature: function(feature, layer) {
             let p = feature.properties || {};
 
             if (p.title) {
 
-   		 // Always available on click (optional fallback)
-    		layer.bindPopup("<b>" + p.title + "</b>");
+                // Optional popup (still useful fallback)
+                layer.bindPopup("<b>" + p.title + "</b>");
 
-    		// Label next to marker
-    		layer.bindTooltip(p.title, {
-        	permanent: true,
-        	direction: "right",
-        	offset: [10, 0],
-        	className: "poi-label"
-    		});
-	}
+                // Permanent label (we'll control visibility by zoom)
+                layer.bindTooltip(p.title, {
+                    permanent: true,
+                    direction: "right",
+                    offset: [10, 0],
+                    className: "poi-label"
+                });
+            }
         }
 
     }).addTo(map);
@@ -70,6 +70,27 @@ fetch('data/parks.json')
     map.fitBounds(bounds);
 
     document.getElementById("modeBox").innerHTML = "Browse Mode";
+
+    // 🔍 Control label visibility based on zoom
+    function updatePOILabels() {
+        let zoom = map.getZoom();
+
+        trails.eachLayer(layer => {
+            if (layer.getTooltip()) {
+                if (zoom >= 16) {
+                    layer.openTooltip();
+                } else {
+                    layer.closeTooltip();
+                }
+            }
+        });
+    }
+
+    // Run once
+    updatePOILabels();
+
+    // Update on zoom
+    map.on("zoomend", updatePOILabels);
 
 })
 .catch(err => {
