@@ -269,14 +269,22 @@
             }, 3000);
         }
         
-        // Update user location marker
+        // Update user location marker with fixed triangle rotation
         function updateUserLocation(lat, lng, heading) {
             if (!userMarker) {
-                // Create custom blue dot marker with direction indicator
+                // Create custom blue dot marker with direction triangle
+                // The triangle needs to rotate around its bottom point (where it meets the blue dot)
                 const iconHtml = `
-                    <div style="position: relative; width: 28px; height: 28px;">
-                        <div class="direction-indicator" style="position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 14px solid #007AFF; margin-bottom: 4px; transition: transform 0.1s ease;"></div>
-                        <div style="width: 28px; height: 28px; background: #007AFF; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 0 2px rgba(0,122,255,0.3);"></div>
+                    <div style="position: relative; width: 28px; height: 42px;">
+                        <svg width="28" height="42" viewBox="0 0 28 42" style="position: absolute; top: 0; left: 0;">
+                            <!-- Direction triangle - positioned with its tip at top, base at bottom where it meets the dot -->
+                            <polygon points="14,0 8,14 20,14" fill="#007AFF" stroke="white" stroke-width="2" 
+                                     style="transform-origin: 14px 14px; transform: rotate(0deg);"
+                                     class="direction-triangle"/>
+                            <!-- Blue dot (circle) at bottom -->
+                            <circle cx="14" cy="32" r="10" fill="#007AFF" stroke="white" stroke-width="3"/>
+                            <circle cx="14" cy="32" r="12" fill="none" stroke="rgba(0,122,255,0.3)" stroke-width="2"/>
+                        </svg>
                     </div>
                 `;
                 
@@ -284,7 +292,7 @@
                     html: iconHtml,
                     className: 'custom-div-icon',
                     iconSize: [28, 42],
-                    iconAnchor: [14, 14]
+                    iconAnchor: [14, 32]  // Anchor at the center of the blue dot
                 });
                 
                 userMarker = L.marker([lat, lng], { icon: icon }).addTo(map);
@@ -292,11 +300,14 @@
                 userMarker.setLatLng([lat, lng]);
             }
             
-            // Update direction indicator rotation
+            // Update direction triangle rotation
             if (heading !== null && userMarker.getElement()) {
-                const directionIndicator = userMarker.getElement().querySelector('.direction-indicator');
-                if (directionIndicator) {
-                    directionIndicator.style.transform = `translateX(-50%) rotate(${heading}deg)`;
+                const svg = userMarker.getElement().querySelector('svg');
+                const triangle = svg?.querySelector('.direction-triangle');
+                if (triangle) {
+                    // Rotate around the base point (14px from left, 14px from top where triangle meets the dot)
+                    triangle.style.transformOrigin = '14px 14px';
+                    triangle.style.transform = `rotate(${heading}deg)`;
                 }
             }
             
@@ -319,11 +330,13 @@
                     currentHeading = heading;
                     updateCompass();
                     
-                    // Update marker direction if we have location
+                    // Update marker triangle if marker exists
                     if (userMarker && currentLocation) {
-                        const directionIndicator = userMarker.getElement()?.querySelector('.direction-indicator');
-                        if (directionIndicator) {
-                            directionIndicator.style.transform = `translateX(-50%) rotate(${currentHeading}deg)`;
+                        const svg = userMarker.getElement()?.querySelector('svg');
+                        const triangle = svg?.querySelector('.direction-triangle');
+                        if (triangle) {
+                            triangle.style.transformOrigin = '14px 14px';
+                            triangle.style.transform = `rotate(${currentHeading}deg)`;
                         }
                     }
                 }
@@ -461,7 +474,7 @@
                         elevationEl.textContent = '---';
                     }
                     
-                    // Update heading from GPS if available and moving
+                    // Update heading from GPS if available
                     if (heading !== null && heading >= 0) {
                         currentHeading = heading;
                         updateCompass();
