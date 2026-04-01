@@ -5,16 +5,17 @@ const map = L.map('map', {
   zoomControl: true,
   maxZoom: 21,
   minZoom: 3
-}).setView([34.6, -86.98], 14); // Default fallback
+}).setView([34.6, -86.98], 14);
 
 // ---------------------------
 // Tile Layers
 // ---------------------------
 
-// OpenStreetMap (supports high zoom)
+// OpenStreetMap
 const osmLayer = L.tileLayer(
   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   {
+    maxNativeZoom: 19,
     maxZoom: 21,
     attribution: '© OpenStreetMap contributors'
   }
@@ -24,8 +25,8 @@ const osmLayer = L.tileLayer(
 const topoLayer = L.tileLayer(
   'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
   {
-    maxZoom: 17,
-    maxNativeZoom: 17, // 👈 key fix
+    maxNativeZoom: 17,
+    maxZoom: 21,
     attribution: '© OpenTopoMap contributors'
   }
 );
@@ -35,6 +36,7 @@ const satelliteLayer = L.tileLayer(
   'https://server.arcgisonline.com/ArcGIS/rest/services/' +
   'World_Imagery/MapServer/tile/{z}/{y}/{x}',
   {
+    maxNativeZoom: 19,
     maxZoom: 21,
     attribution: 'Tiles © Esri'
   }
