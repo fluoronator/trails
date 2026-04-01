@@ -2,15 +2,18 @@
 
 let tilePane = null;
 
-// Wait until map is ready
-setTimeout(() => {
-    tilePane = map.getPane('tilePane');
-}, 500);
+function getTilePane() {
+    if (!tilePane && map) {
+        tilePane = map.getPane('tilePane');
+    }
+    return tilePane;
+}
 
 function rotateMap(deg) {
-    if (tilePane) {
-        tilePane.style.transformOrigin = "50% 50%";
-        tilePane.style.transform = "rotate(" + (-deg) + "deg)";
+    const pane = getTilePane();
+    if (pane) {
+        pane.style.transformOrigin = "50% 50%";
+        pane.style.transform = "rotate(" + (-deg) + "deg)";
     }
 }
 
