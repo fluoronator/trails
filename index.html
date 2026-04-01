@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Hiking Trail Map - Smooth Rotating Map</title>
+    <title>Hiking Trail Map</title>
     
     <!-- MapLibre GL JS -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -186,20 +186,6 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
-        .debug-panel {
-            position: absolute;
-            top: 80px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-family: monospace;
-            color: #0f0;
-            z-index: 10;
-            pointer-events: none;
-        }
-        
         .simple-dot {
             width: 20px;
             height: 20px;
@@ -236,10 +222,6 @@
         </div>
     </div>
     
-    <div class="debug-panel" id="debugPanel">
-        Heading: --° | Target: --° | Map: --°
-    </div>
-    
     <div class="info-message" id="infoMessage">📍 Share location to see your position</div>
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-content">
@@ -250,6 +232,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Simple map style with OpenStreetMap
             const mapStyle = {
                 version: 8,
                 sources: {
@@ -281,7 +264,6 @@
             let userMarker = null;
             let currentLocation = null;
             let currentHeading = 0;
-            let targetHeading = 0;  // Smooth interpolation target
             let watchId = null;
             let isUserInteracting = false;
             let interactionTimeout = null;
@@ -292,42 +274,9 @@
             const compassButton = document.getElementById('compassButton');
             const infoMessage = document.getElementById('infoMessage');
             const loadingOverlay = document.getElementById('loadingOverlay');
-            const debugPanel = document.getElementById('debugPanel');
-            
-            function updateDebug() {
-                const mapBearing = map.getBearing();
-                debugPanel.innerHTML = `Heading: ${Math.round(currentHeading)}° | Target: ${Math.round(targetHeading)}° | Map: ${Math.round(mapBearing)}°`;
-            }
-            
-            // Smooth rotation - interpolate towards target heading
-            function smoothRotate() {
-                if (mapLoaded && !isUserInteracting) {
-                    let currentBearing = map.getBearing();
-                    let diff = targetHeading - currentBearing;
-                    
-                    // Shortest path
-                    if (diff > 180) diff -= 360;
-                    if (diff < -180) diff += 360;
-                    
-                    // Apply smoothing - move 30% of the remaining distance each frame
-                    // This creates smooth, fluid rotation
-                    const step = diff * 0.25;
-                    const newBearing = currentBearing + step;
-                    
-                    if (Math.abs(diff) > 0.1) {
-                        map.setBearing(newBearing);
-                    } else if (Math.abs(diff) > 0.01) {
-                        map.setBearing(targetHeading);
-                    }
-                    updateDebug();
-                }
-            }
             
             function resetToNorth() {
-                targetHeading = 0;
-                currentHeading = 0;
                 map.setBearing(0);
-                updateCompassNeedle();
                 infoMessage.textContent = '🗺️ Map north-up';
                 infoMessage.style.opacity = '1';
                 setTimeout(() => {
@@ -346,18 +295,13 @@
                     if (currentLocation) {
                         map.flyTo({
                             center: [currentLocation.lng, currentLocation.lat],
-                            bearing: targetHeading,
+                            bearing: map.getBearing(),
                             zoom: Math.max(map.getZoom(), 16),
                             duration: 800,
                             essential: true
                         });
                     }
                 }, 3000);
-            }
-            
-            function updateCompassNeedle() {
-                // Smooth compass needle movement
-                compassNeedle.style.transform = `rotate(${targetHeading}deg)`;
             }
             
             function updateUserLocation(lat, lng) {
@@ -375,66 +319,56 @@
                     map.flyTo({
                         center: [lng, lat],
                         zoom: 17,
-                        bearing: targetHeading,
+                        bearing: currentHeading,
                         duration: 1000
                     });
                 }
             }
             
-            // Device orientation with high frequency
+            // DIRECT ROTATION - exactly like Google Maps does it
+            function handleOrientation(event) {
+                // Get absolute heading (0 = north)
+                let heading = event.webkitCompassHeading || event.alpha;
+                
+                if (heading !== null && !isNaN(heading)) {
+                    currentHeading = heading;
+                    
+                    // Update compass needle immediately
+                    compassNeedle.style.transform = `rotate(${currentHeading}deg)`;
+                    
+                    // Update map rotation immediately - no interpolation, no delays
+                    if (mapLoaded && !isUserInteracting) {
+                        map.setBearing(currentHeading);
+                    }
+                }
+            }
+            
+            // Start compass with iOS permission handling
             function startCompass() {
                 if (!window.DeviceOrientationEvent) {
-                    console.log('No device orientation support');
+                    console.log('No compass support');
                     return;
                 }
                 
-                let lastTimestamp = 0;
-                
-                const handleOrientation = (event) => {
-                    let heading = event.webkitCompassHeading || event.alpha;
-                    if (heading !== null && !isNaN(heading)) {
-                        if (event.webkitCompassHeading !== undefined) {
-                            heading = event.webkitCompassHeading;
-                        }
-                        
-                        // Update target heading immediately
-                        targetHeading = heading;
-                        currentHeading = heading;
-                        updateCompassNeedle();
-                        updateDebug();
-                    }
-                };
-                
-                // iOS requires permission
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    let permissionGranted = false;
+                    // iOS - need user interaction first
+                    let permissionRequested = false;
                     
                     const requestPermission = () => {
-                        if (permissionGranted) return;
-                        permissionGranted = true;
+                        if (permissionRequested) return;
+                        permissionRequested = true;
                         
                         DeviceOrientationEvent.requestPermission()
                             .then(permissionState => {
                                 if (permissionState === 'granted') {
-                                    // Use deviceorientation event with frequency option
                                     window.addEventListener('deviceorientation', handleOrientation);
-                                    
-                                    // Also try to request high frequency updates
-                                    if (DeviceOrientationEvent.requestPermission === 'function') {
-                                        // iOS: request high frequency by setting interval
-                                        setInterval(() => {
-                                            // Force refresh
-                                        }, 16);
-                                    }
-                                    
-                                    infoMessage.textContent = '🧭 Compass active - smooth rotation!';
+                                    infoMessage.textContent = '🧭 Compass active - map rotates';
                                     infoMessage.style.opacity = '1';
                                     setTimeout(() => {
-                                        if (infoMessage.textContent === '🧭 Compass active - smooth rotation!') {
+                                        if (infoMessage.textContent === '🧭 Compass active - map rotates') {
                                             infoMessage.style.opacity = '0';
                                         }
                                     }, 3000);
-                                    console.log('Compass active');
                                 }
                             })
                             .catch(err => console.error('Compass error:', err));
@@ -442,14 +376,14 @@
                     
                     document.body.addEventListener('click', requestPermission);
                     document.body.addEventListener('touchstart', requestPermission);
-                    infoMessage.textContent = '📱 Tap screen to enable smooth compass rotation';
+                    infoMessage.textContent = '📱 Tap screen to enable compass';
                     infoMessage.style.opacity = '1';
                 } else {
-                    // Android - use deviceorientation with higher frequency
+                    // Android - just add listener
                     window.addEventListener('deviceorientation', handleOrientation);
-                    infoMessage.textContent = '🧭 Compass active - smooth rotation!';
+                    infoMessage.textContent = '🧭 Compass active - map rotates';
                     setTimeout(() => {
-                        if (infoMessage.textContent === '🧭 Compass active - smooth rotation!') {
+                        if (infoMessage.textContent === '🧭 Compass active - map rotates') {
                             infoMessage.style.opacity = '0';
                         }
                     }, 3000);
@@ -551,7 +485,6 @@
                                     .addTo(map);
                             });
                         }
-                        console.log('Trails loaded');
                     }
                 } catch (err) {
                     console.log('No trails file');
@@ -567,7 +500,6 @@
             map.on('load', () => {
                 mapLoaded = true;
                 loadTrails();
-                console.log('Map loaded - smooth rotation ready');
             });
             
             map.on('movestart', resetInteractionTimer);
@@ -579,20 +511,6 @@
             startGPS();
             startCompass();
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
-            
-            // High frequency animation loop for smooth rotation (60fps)
-            function animationLoop() {
-                smoothRotate();
-                requestAnimationFrame(animationLoop);
-            }
-            animationLoop();
-            
-            // Also update compass needle at high frequency
-            function compassAnimation() {
-                updateCompassNeedle();
-                requestAnimationFrame(compassAnimation);
-            }
-            compassAnimation();
             
             setTimeout(() => {
                 infoMessage.style.opacity = '0';
