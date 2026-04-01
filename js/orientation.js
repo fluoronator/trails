@@ -1,19 +1,28 @@
 // orientation.js
 
 let tilePane = null;
+let overlayPane = null;
 
-function getTilePane() {
-    if (!tilePane && map) {
-        tilePane = map.getPane('tilePane');
+function getPanes() {
+    if (map) {
+        if (!tilePane) tilePane = map.getPane('tilePane');
+        if (!overlayPane) overlayPane = map.getPane('overlayPane');
     }
-    return tilePane;
 }
 
+// Rotate both map + overlays
 function rotateMap(deg) {
-    const pane = getTilePane();
-    if (pane) {
-        pane.style.transformOrigin = "50% 50%";
-        pane.style.transform = "rotate(" + (-deg) + "deg)";
+    getPanes();
+
+    if (tilePane && overlayPane) {
+
+        const rotation = "rotate(" + (-deg) + "deg)";
+
+        tilePane.style.transformOrigin = "50% 50%";
+        overlayPane.style.transformOrigin = "50% 50%";
+
+        tilePane.style.transform = rotation;
+        overlayPane.style.transform = rotation;
     }
 }
 
@@ -39,7 +48,7 @@ function handleOrientation(event) {
         if (isHikingMode()) {
             rotateMap(heading);
         } else {
-            rotateMap(0);
+            rotateMap(0); // reset
         }
     }
 }
