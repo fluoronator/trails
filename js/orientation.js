@@ -1,10 +1,20 @@
-let mapWrapper = document.getElementById("mapWrapper");
+// orientation.js
+
+let tilePane = null;
+
+// Wait until map is ready
+setTimeout(() => {
+    tilePane = map.getPane('tilePane');
+}, 500);
 
 function rotateMap(deg) {
-    mapWrapper.style.transform = "rotate(" + (-deg) + "deg)";
+    if (tilePane) {
+        tilePane.style.transformOrigin = "50% 50%";
+        tilePane.style.transform = "rotate(" + (-deg) + "deg)";
+    }
 }
 
-// ✅ Check current mode safely
+// Check mode
 function isHikingMode() {
     let modeBox = document.getElementById("modeBox");
     return modeBox && modeBox.innerText.includes("Hiking");
@@ -23,11 +33,10 @@ function handleOrientation(event) {
 
     if (heading !== undefined) {
 
-        // ✅ ONLY rotate in Hiking Mode
         if (isHikingMode()) {
             rotateMap(heading);
         } else {
-            rotateMap(0); // reset to north-up
+            rotateMap(0);
         }
     }
 }
