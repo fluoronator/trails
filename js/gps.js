@@ -47,7 +47,7 @@ if (navigator.geolocation) {
         let distance = map.distance(userLocation, window.trailCenter);
 
         // Within park → Hiking Mode
-        if (distance < 3200) {
+        if (distance < 90000) {
           map.setView(userLocation, 17);
           setModeLabel("Hiking Mode");
         } else {
