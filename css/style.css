@@ -40,3 +40,15 @@
 .leaflet-tooltip.poi-label::before {
     display: none !important;
 }
+
+/* Trail labels (clean, readable) */
+.trail-label {
+    color: black;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+
+    white-space: nowrap;
+
+    text-shadow: 0 0 4px white;
+}

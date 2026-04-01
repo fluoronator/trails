@@ -60,26 +60,26 @@ fetch('data/parks.json')
                 }
             }
 
-            // 🟡 TRAILS
+            // 🟡 TRAILS (clean centered label)
             if (feature.geometry.type === "LineString") {
 
-                if (p.title && layer.setText) {
+                if (p.title) {
 
-                    layer.setText(p.title, {
-                        repeat: false,
-                        center: true,
-                        offset: 8,
-                        orientation: 0,
+                    let center = layer.getBounds().getCenter();
 
-                        attributes: {
-                            fill: p.stroke || "#00ff88",
-                            "font-size": "14",
-                            "font-weight": "bold",
-                            "letter-spacing": "1",   // 👈 FIX: keeps letters together
-                            "word-spacing": "2",
-                            "text-shadow": "0 0 3px white"
-                        }
+                    let label = L.marker(center, {
+                        interactive: false,
+                        icon: L.divIcon({
+                            className: "trail-label",
+                            html: p.title,
+                            iconSize: null
+                        })
                     });
+
+                    label.addTo(map);
+
+                    // Store reference for zoom control later
+                    layer._label = label;
                 }
             }
         }
@@ -103,6 +103,15 @@ fetch('data/parks.json')
                     layer.openTooltip();
                 } else {
                     layer.closeTooltip();
+                }
+            }
+
+            // Trail label zoom control
+            if (layer._label) {
+                if (zoom >= 15) {
+                    layer._label.getElement().style.display = "block";
+                } else {
+                    layer._label.getElement().style.display = "none";
                 }
             }
         });
