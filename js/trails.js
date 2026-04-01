@@ -44,25 +44,23 @@ fetch('data/parks.json')
         onEachFeature: function(feature, layer) {
             let p = feature.properties || {};
 
-            // 🟢 POIs (points)
+            // 🟢 POIs
             if (feature.geometry.type === "Point") {
 
                 if (p.title) {
 
-                    let text = p.title;
-
-                    layer.bindTooltip(text, {
+                    layer.bindTooltip(p.title, {
                         permanent: false,
                         direction: "right",
                         offset: [10, 0],
                         className: "poi-label"
                     });
 
-                    layer.bindPopup("<b>" + text + "</b>");
+                    layer.bindPopup("<b>" + p.title + "</b>");
                 }
             }
 
-            // 🟡 TRAILS (lines)
+            // 🟡 TRAILS
             if (feature.geometry.type === "LineString") {
 
                 if (p.title && layer.setText) {
@@ -70,12 +68,15 @@ fetch('data/parks.json')
                     layer.setText(p.title, {
                         repeat: false,
                         center: true,
-                        offset: -10,   // 👈 moves text off the line
+                        offset: 8,
+                        orientation: 0,
 
                         attributes: {
                             fill: p.stroke || "#00ff88",
                             "font-size": "14",
                             "font-weight": "bold",
+                            "letter-spacing": "1",   // 👈 FIX: keeps letters together
+                            "word-spacing": "2",
                             "text-shadow": "0 0 3px white"
                         }
                     });
