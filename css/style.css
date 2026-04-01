@@ -1,1 +1,60 @@
 
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: black;
+    overflow: hidden;
+}
+
+#versionNumber {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: 70px;
+    font-weight: bold;
+    color: white;
+    z-index: 1000;
+}
+
+#modeBox {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    font-size: 22px;
+    font-weight: bold;
+    color: white;
+    z-index: 1000;
+    background: rgba(0,0,0,0.4);
+    padding: 8px 14px;
+    border-radius: 10px;
+}
+
+#elevationBox {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    font-size: 32px;
+    font-weight: bold;
+    color: white;
+    z-index: 1000;
+    background: rgba(0,0,0,0.4);
+    padding: 10px 16px;
+    border-radius: 12px;
+}
+
+#mapWrapper {
+    position: fixed;
+    width: 100vw;
+    height: 100vh;
+    transform-origin: center center;
+}
+
+#map {
+    position: absolute;
+    width: 200vmax;
+    height: 200vmax;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
