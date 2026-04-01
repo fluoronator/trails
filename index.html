@@ -3,76 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rotating Map - Version 7</title>
+<title>Hiking Map - Version 8</title>
+
+<link rel="stylesheet" href="css/style.css">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<style>
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    background: black;
-    overflow: hidden;
-}
-
-#versionNumber {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    font-size: 70px;
-    font-weight: bold;
-    color: white;
-    z-index: 1000;
-}
-
-#modeBox {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    font-size: 22px;
-    font-weight: bold;
-    color: white;
-    z-index: 1000;
-    background: rgba(0,0,0,0.4);
-    padding: 8px 14px;
-    border-radius: 10px;
-}
-
-#elevationBox {
-    position: absolute;
-    bottom: 20px;
-    left: 20px;
-    font-size: 32px;
-    font-weight: bold;
-    color: white;
-    z-index: 1000;
-    background: rgba(0,0,0,0.4);
-    padding: 10px 16px;
-    border-radius: 12px;
-}
-
-#mapWrapper {
-    position: fixed;
-    width: 100vw;
-    height: 100vh;
-    transform-origin: center center;
-}
-
-#map {
-    position: absolute;
-    width: 200vmax;
-    height: 200vmax;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-}
-</style>
 </head>
+
 <body>
 
-<div id="versionNumber">7</div>
+<div id="versionNumber">8</div>
 <div id="modeBox">Loading Trails...</div>
 <div id="elevationBox">Elevation: -- ft</div>
 
@@ -80,112 +21,10 @@ html, body {
     <div id="map"></div>
 </div>
 
-<script>
-let map = L.map('map', {
-    zoomControl: false,
-    attributionControl: false
-}).setView([0,0], 15);
-
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-}).addTo(map);
-
-// ===== FIXED PATH HERE =====
-fetch('data/trails.geojson')
-    .then(response => {
-        if (!response.ok) throw new Error("File not found");
-        return response.json();
-    })
-    .then(data => {
-
-        let trails = L.geoJSON(data, {
-            style: {
-                color: "#00ff88",
-                weight: 4
-            }
-        }).addTo(map);
-
-        let bounds = trails.getBounds();
-        map.fitBounds(bounds);
-
-        document.getElementById("modeBox").innerHTML = "Browse Mode";
-
-    })
-    .catch(err => {
-        document.getElementById("modeBox").innerHTML = "GeoJSON not found";
-        console.log(err);
-    });
-
-// ===== BLUE DOT =====
-let userMarker = L.circleMarker([0,0], {
-    radius: 8,
-    color: '#fff',
-    weight: 2,
-    fillColor: '#007aff',
-    fillOpacity: 1
-}).addTo(map);
-
-let accuracyCircle = L.circle([0,0], {
-    radius: 0,
-    color: '#007aff',
-    fillColor: '#007aff',
-    fillOpacity: 0.15,
-    weight: 1
-}).addTo(map);
-
-// ===== ELEVATION =====
-navigator.geolocation.watchPosition(position => {
-
-    const lat = position.coords.latitude;
-    const lon = position.coords.longitude;
-
-    userMarker.setLatLng([lat, lon]);
-    accuracyCircle.setLatLng([lat, lon]);
-    accuracyCircle.setRadius(position.coords.accuracy);
-
-    if (position.coords.altitude !== null) {
-        let feet = position.coords.altitude * 3.28084;
-        document.getElementById("elevationBox").innerHTML =
-            "Elevation: " + feet.toFixed(0) + " ft";
-    }
-
-}, () => {}, { enableHighAccuracy: true });
-
-// ===== ROTATION =====
-let mapWrapper = document.getElementById("mapWrapper");
-
-function rotateMap(deg) {
-    mapWrapper.style.transform = "rotate(" + (-deg) + "deg)";
-}
-
-if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    document.body.addEventListener("click", function() {
-        DeviceOrientationEvent.requestPermission()
-        .then(function(permissionState) {
-            if (permissionState === 'granted') {
-                window.addEventListener("deviceorientation", handleOrientation);
-            }
-        });
-    }, { once: true });
-} else {
-    window.addEventListener("deviceorientation", handleOrientation);
-}
-
-function handleOrientation(event) {
-    let heading;
-
-    if (event.webkitCompassHeading !== undefined) {
-        heading = event.webkitCompassHeading;
-    }
-    else if (event.alpha !== null) {
-        heading = 360 - event.alpha;
-    }
-
-    if (heading !== undefined) {
-        rotateMap(heading);
-    }
-}
-</script>
+<script src="js/map.js"></script>
+<script src="js/trails.js"></script>
+<script src="js/gps.js"></script>
+<script src="js/orientation.js"></script>
 
 </body>
 </html>
