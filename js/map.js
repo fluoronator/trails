@@ -11,20 +11,21 @@ const map = L.map('map', {
 // Tile Layers
 // ---------------------------
 
-// OpenStreetMap
+// OpenStreetMap (supports high zoom)
 const osmLayer = L.tileLayer(
   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   {
-    maxZoom: 19,
+    maxZoom: 21,
     attribution: '© OpenStreetMap contributors'
   }
 );
 
-// Topographic (recommended default)
+// Topographic
 const topoLayer = L.tileLayer(
   'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
   {
     maxZoom: 17,
+    maxNativeZoom: 17, // 👈 key fix
     attribution: '© OpenTopoMap contributors'
   }
 );
@@ -34,6 +35,7 @@ const satelliteLayer = L.tileLayer(
   'https://server.arcgisonline.com/ArcGIS/rest/services/' +
   'World_Imagery/MapServer/tile/{z}/{y}/{x}',
   {
+    maxZoom: 21,
     attribution: 'Tiles © Esri'
   }
 );
@@ -49,11 +51,6 @@ L.control.layers({
 }).addTo(map);
 
 // ---------------------------
-// IMPORTANT: Do NOT add anything else here
+// IMPORTANT:
+// This file ONLY handles the base map
 // ---------------------------
-// Your app relies on:
-//   - trails.js (draws trails)
-//   - gps.js (handles location)
-//   - orientation.js
-//
-// This file should ONLY handle the base map.
