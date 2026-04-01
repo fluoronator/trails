@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Hiking Trail Map</title>
+    <title>Hiking Trail Map - OpenLayers</title>
     
-    <!-- MapLibre GL JS -->
-    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <!-- OpenLayers CSS and JS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css">
+    <script src="https://cdn.jsdelivr.net/npm/ol@v9.2.4/dist/ol.js"></script>
     
     <style>
         * {
@@ -231,43 +231,46 @@
     </div>
 
     <script>
+        // Wait for DOM
         document.addEventListener('DOMContentLoaded', () => {
-            // Simple map style with OpenStreetMap
-            const mapStyle = {
-                version: 8,
-                sources: {
-                    osm: {
-                        type: 'raster',
-                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                        tileSize: 256,
-                        attribution: '© OpenStreetMap contributors'
-                    }
-                },
-                layers: [{
-                    id: 'osm',
-                    type: 'raster',
-                    source: 'osm',
-                    minzoom: 0,
-                    maxzoom: 19
-                }]
-            };
-            
-            const map = new maplibregl.Map({
-                container: 'map',
-                style: mapStyle,
-                center: [-120.0, 37.5],
-                zoom: 14,
-                pitch: 0,
-                bearing: 0
+            // Base map tile layer (OpenStreetMap)
+            const tileLayer = new ol.layer.Tile({
+                source: new ol.source.OSM()
             });
             
+            // Vector layer for trails (will be added after loading)
+            let trailsLayer = null;
+            let poisLayer = null;
+            
+            // View with rotation support
+            const view = new ol.View({
+                center: ol.proj.fromLonLat([-120.0, 37.5]),
+                zoom: 14,
+                rotation: 0  // Rotation in radians
+            });
+            
+            // Create map
+            const map = new ol.Map({
+                target: 'map',
+                layers: [tileLayer],
+                view: view,
+                controls: ol.control.defaults({
+                    attributionOptions: {
+                        collapsible: true
+                    }
+                })
+            });
+            
+            // Add zoom control
+            map.addControl(new ol.control.Zoom());
+            
+            // Global variables
             let userMarker = null;
             let currentLocation = null;
             let currentHeading = 0;
             let watchId = null;
             let isUserInteracting = false;
             let interactionTimeout = null;
-            let mapLoaded = false;
             
             const elevationEl = document.getElementById('elevation');
             const compassNeedle = document.getElementById('compassNeedle');
@@ -275,8 +278,39 @@
             const infoMessage = document.getElementById('infoMessage');
             const loadingOverlay = document.getElementById('loadingOverlay');
             
+            // Convert degrees to radians (OpenLayers uses radians for rotation)
+            function degToRad(deg) {
+                return deg * Math.PI / 180;
+            }
+            
+            // Convert radians to degrees
+            function radToDeg(rad) {
+                return rad * 180 / Math.PI;
+            }
+            
+            // Update map rotation based on heading
+            function updateMapRotation() {
+                if (!isUserInteracting) {
+                    const currentRotation = view.getRotation();
+                    const targetRotation = degToRad(currentHeading);
+                    
+                    // Direct rotation - no interpolation for maximum responsiveness
+                    if (Math.abs(currentRotation - targetRotation) > 0.001) {
+                        view.setRotation(targetRotation);
+                    }
+                }
+            }
+            
+            // Update compass needle
+            function updateCompassNeedle() {
+                compassNeedle.style.transform = `rotate(${currentHeading}deg)`;
+            }
+            
+            // Reset to north-up
             function resetToNorth() {
-                map.setBearing(0);
+                currentHeading = 0;
+                view.setRotation(0);
+                updateCompassNeedle();
                 infoMessage.textContent = '🗺️ Map north-up';
                 infoMessage.style.opacity = '1';
                 setTimeout(() => {
@@ -286,6 +320,7 @@
                 }, 1500);
             }
             
+            // Auto-recenter timer
             function resetInteractionTimer() {
                 if (interactionTimeout) clearTimeout(interactionTimeout);
                 isUserInteracting = true;
@@ -293,57 +328,79 @@
                 interactionTimeout = setTimeout(() => {
                     isUserInteracting = false;
                     if (currentLocation) {
-                        map.flyTo({
-                            center: [currentLocation.lng, currentLocation.lat],
-                            bearing: map.getBearing(),
-                            zoom: Math.max(map.getZoom(), 16),
-                            duration: 800,
-                            essential: true
+                        const currentZoom = view.getZoom();
+                        view.animate({
+                            center: ol.proj.fromLonLat([currentLocation.lng, currentLocation.lat]),
+                            zoom: Math.max(currentZoom, 16),
+                            rotation: view.getRotation(),
+                            duration: 800
                         });
                     }
                 }, 3000);
             }
             
+            // Create user location marker
             function updateUserLocation(lat, lng) {
+                const coords = ol.proj.fromLonLat([lng, lat]);
+                
                 if (!userMarker) {
+                    // Create custom blue dot element
                     const el = document.createElement('div');
                     el.className = 'simple-dot';
-                    userMarker = new maplibregl.Marker({ element: el })
-                        .setLngLat([lng, lat])
-                        .addTo(map);
+                    el.style.width = '20px';
+                    el.style.height = '20px';
+                    el.style.backgroundColor = '#007AFF';
+                    el.style.borderRadius = '50%';
+                    el.style.border = '3px solid white';
+                    el.style.boxShadow = '0 0 0 2px rgba(0, 122, 255, 0.3)';
+                    
+                    userMarker = new ol.Feature({
+                        geometry: new ol.geom.Point(coords)
+                    });
+                    
+                    const vectorSource = new ol.source.Vector({
+                        features: [userMarker]
+                    });
+                    
+                    const markerLayer = new ol.layer.Vector({
+                        source: vectorSource,
+                        style: new ol.style.Style({
+                            image: new ol.style.Circle({
+                                radius: 10,
+                                fill: new ol.style.Fill({ color: '#007AFF' }),
+                                stroke: new ol.style.Stroke({ color: 'white', width: 3 })
+                            })
+                        })
+                    });
+                    
+                    map.addLayer(markerLayer);
                 } else {
-                    userMarker.setLngLat([lng, lat]);
+                    userMarker.getGeometry().setCoordinates(coords);
                 }
                 
+                // Center on first location
                 if (!currentLocation) {
-                    map.flyTo({
-                        center: [lng, lat],
+                    view.animate({
+                        center: coords,
                         zoom: 17,
-                        bearing: currentHeading,
+                        rotation: degToRad(currentHeading),
                         duration: 1000
                     });
                 }
             }
             
-            // DIRECT ROTATION - exactly like Google Maps does it
+            // Device orientation handler
             function handleOrientation(event) {
-                // Get absolute heading (0 = north)
                 let heading = event.webkitCompassHeading || event.alpha;
                 
                 if (heading !== null && !isNaN(heading)) {
                     currentHeading = heading;
-                    
-                    // Update compass needle immediately
-                    compassNeedle.style.transform = `rotate(${currentHeading}deg)`;
-                    
-                    // Update map rotation immediately - no interpolation, no delays
-                    if (mapLoaded && !isUserInteracting) {
-                        map.setBearing(currentHeading);
-                    }
+                    updateCompassNeedle();
+                    updateMapRotation();
                 }
             }
             
-            // Start compass with iOS permission handling
+            // Start compass
             function startCompass() {
                 if (!window.DeviceOrientationEvent) {
                     console.log('No compass support');
@@ -351,7 +408,7 @@
                 }
                 
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    // iOS - need user interaction first
+                    // iOS
                     let permissionRequested = false;
                     
                     const requestPermission = () => {
@@ -379,7 +436,7 @@
                     infoMessage.textContent = '📱 Tap screen to enable compass';
                     infoMessage.style.opacity = '1';
                 } else {
-                    // Android - just add listener
+                    // Android
                     window.addEventListener('deviceorientation', handleOrientation);
                     infoMessage.textContent = '🧭 Compass active - map rotates';
                     setTimeout(() => {
@@ -388,6 +445,113 @@
                         }
                     }, 3000);
                 }
+            }
+            
+            // Load GeoJSON trails
+            async function loadTrails() {
+                try {
+                    const response = await fetch('data/trails.geojson');
+                    if (response.ok) {
+                        const geojson = await response.json();
+                        
+                        // Convert GeoJSON to OpenLayers format
+                        const format = new ol.format.GeoJSON();
+                        const features = format.readFeatures(geojson, {
+                            dataProjection: 'EPSG:4326',
+                            featureProjection: 'EPSG:3857'
+                        });
+                        
+                        // Separate trails (lines) from POIs (points)
+                        const trailFeatures = features.filter(f => f.getGeometry().getType() === 'LineString');
+                        const poiFeatures = features.filter(f => f.getGeometry().getType() === 'Point');
+                        
+                        // Add trails layer
+                        if (trailFeatures.length > 0) {
+                            const trailSource = new ol.source.Vector({
+                                features: trailFeatures
+                            });
+                            
+                            trailsLayer = new ol.layer.Vector({
+                                source: trailSource,
+                                style: new ol.style.Style({
+                                    stroke: new ol.style.Stroke({
+                                        color: (feature) => {
+                                            const props = feature.getProperties();
+                                            const color = props.stroke || props.color || '#4CAF50';
+                                            return color;
+                                        },
+                                        width: 4
+                                    })
+                                })
+                            });
+                            
+                            map.addLayer(trailsLayer);
+                        }
+                        
+                        // Add POIs layer
+                        if (poiFeatures.length > 0) {
+                            const poiSource = new ol.source.Vector({
+                                features: poiFeatures
+                            });
+                            
+                            poisLayer = new ol.layer.Vector({
+                                source: poiSource,
+                                style: new ol.style.Style({
+                                    image: new ol.style.Circle({
+                                        radius: 8,
+                                        fill: new ol.style.Fill({ color: '#FF6B35' }),
+                                        stroke: new ol.style.Stroke({ color: 'white', width: 2 })
+                                    })
+                                })
+                            });
+                            
+                            map.addLayer(poisLayer);
+                            
+                            // Add popup on click
+                            map.on('click', (evt) => {
+                                const feature = map.forEachFeatureAtPixel(evt.pixel, (f) => f);
+                                if (feature && poiFeatures.includes(feature)) {
+                                    const props = feature.getProperties();
+                                    const name = props.name || props.title || 'Point of Interest';
+                                    const coords = feature.getGeometry().getCoordinates();
+                                    const lonLat = ol.proj.toLonLat(coords);
+                                    
+                                    // Create popup
+                                    const popupElement = document.createElement('div');
+                                    popupElement.className = 'ol-popup';
+                                    popupElement.innerHTML = `<strong>${name}</strong>`;
+                                    popupElement.style.position = 'absolute';
+                                    popupElement.style.backgroundColor = 'white';
+                                    popupElement.style.padding = '8px 12px';
+                                    popupElement.style.borderRadius = '8px';
+                                    popupElement.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+                                    popupElement.style.fontSize = '14px';
+                                    popupElement.style.maxWidth = '200px';
+                                    
+                                    // Simple alert for now (can be enhanced)
+                                    alert(name);
+                                }
+                            });
+                        }
+                        
+                        // Fit map to trails bounds
+                        if (trailFeatures.length > 0) {
+                            const extent = trailSource.getExtent();
+                            if (extent && !ol.extent.isEmpty(extent)) {
+                                view.fit(extent, { padding: [50, 50, 50, 50], duration: 1000 });
+                            }
+                        }
+                        
+                        console.log('Trails loaded');
+                    }
+                } catch (err) {
+                    console.log('No trails file:', err);
+                }
+                
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    loadingOverlay.style.display = 'none';
+                }, 500);
             }
             
             // GPS tracking
@@ -421,96 +585,19 @@
                 );
             }
             
-            // Load trails
-            async function loadTrails() {
-                try {
-                    const response = await fetch('data/trails.geojson');
-                    if (response.ok) {
-                        const geojson = await response.json();
-                        map.addSource('trails', {
-                            type: 'geojson',
-                            data: geojson
-                        });
-                        map.addLayer({
-                            id: 'trails',
-                            type: 'line',
-                            source: 'trails',
-                            paint: {
-                                'line-color': [
-                                    'match',
-                                    ['get', 'stroke'],
-                                    '#FF0000', '#FF0000',
-                                    '#00FF00', '#00FF00',
-                                    '#0000FF', '#0000FF',
-                                    '#FFFF00', '#FFFF00',
-                                    '#FF00FF', '#FF00FF',
-                                    '#00FFFF', '#00FFFF',
-                                    '#800000', '#800000',
-                                    '#008000', '#008000',
-                                    '#000080', '#000080',
-                                    '#4CAF50', '#4CAF50',
-                                    '#FF6B6B', '#FF6B6B',
-                                    '#4A90E2', '#4A90E2',
-                                    '#FFD93D', '#FFD93D',
-                                    '#2C3E50'
-                                ],
-                                'line-width': 4,
-                                'line-opacity': 0.9
-                            }
-                        });
-                        
-                        const poiFeatures = geojson.features.filter(f => f.geometry.type === 'Point');
-                        if (poiFeatures.length > 0) {
-                            map.addSource('pois', {
-                                type: 'geojson',
-                                data: { type: 'FeatureCollection', features: poiFeatures }
-                            });
-                            map.addLayer({
-                                id: 'pois',
-                                type: 'circle',
-                                source: 'pois',
-                                paint: {
-                                    'circle-radius': 8,
-                                    'circle-color': '#FF6B35',
-                                    'circle-stroke-width': 2,
-                                    'circle-stroke-color': '#FFFFFF'
-                                }
-                            });
-                            
-                            map.on('click', 'pois', (e) => {
-                                const name = e.features[0].properties.name || 'Point of Interest';
-                                new maplibregl.Popup()
-                                    .setLngLat(e.features[0].geometry.coordinates)
-                                    .setHTML(`<strong>${name}</strong>`)
-                                    .addTo(map);
-                            });
-                        }
-                    }
-                } catch (err) {
-                    console.log('No trails file');
-                }
-                
-                loadingOverlay.style.opacity = '0';
-                setTimeout(() => {
-                    loadingOverlay.style.display = 'none';
-                }, 500);
-            }
-            
-            // Map events
-            map.on('load', () => {
-                mapLoaded = true;
-                loadTrails();
-            });
-            
+            // Map interaction listeners
             map.on('movestart', resetInteractionTimer);
-            map.on('zoomstart', resetInteractionTimer);
-            map.on('rotatestart', resetInteractionTimer);
+            map.on('rotate', () => {
+                if (!isUserInteracting) {
+                    resetInteractionTimer();
+                }
+            });
             
             compassButton.addEventListener('click', resetToNorth);
             
             startGPS();
             startCompass();
-            map.addControl(new maplibregl.NavigationControl(), 'top-right');
+            loadTrails();
             
             setTimeout(() => {
                 infoMessage.style.opacity = '0';
