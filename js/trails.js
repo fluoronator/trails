@@ -1,114 +1,146 @@
-// trails.js
+window.trailCenter = null;
 
-fetch("data/parks.json")
-    .then(res => res.json())
-    .then(parks => {
+// Load parks list
+fetch('data/parks.json')
+.then(r => r.json())
+.then(parks => {
 
-        let park = parks[0];
+    let park = parks[0];
+    return fetch(park.file)
+        .then(r => r.json())
+        .then(data => ({ data, park })); // ✅ pass park forward
 
-        // ✅ RESTORED: Hardcoded working trail file
-        fetch("data/trails/HurricaneCreek.geojson")
-            .then(res => res.json())
-            .then(data => {
+})
+.then(({ data, park }) => {
 
-                const trailLayer = L.geoJSON(data, {
+    let trails = L.geoJSON(data, {
 
-                    style: function (feature) {
-                        const p = feature.properties || {};
-                        return {
-                            color: p.stroke || "#00ff88",
-                            weight: Number(p["stroke-width"]) || 4,
-                            opacity: p["stroke-opacity"] || 1
-                        };
-                    },
+        // 🎨 Use CalTopo styling
+        style: function(feature) {
+            let p = feature.properties || {};
 
-                    pointToLayer: function (feature, latlng) {
-                        const p = feature.properties || {};
+            return {
+                color: p.stroke || "#00ff88",
+                weight: Number(p["stroke-width"]) || 4,
+                opacity: p["stroke-opacity"] || 1
+            };
+        },
 
-                        const marker = L.marker(latlng);
+        // 📍 Default red pins
+        pointToLayer: function(feature, latlng) {
 
-                        if (p.title) {
-                            marker.bindTooltip(p.title, {
-                                permanent: false,
-                                direction: "right",
-                                offset: [10, 0],
-                                className: "poi-label"
-                            });
-                        }
+            let redIcon = L.icon({
+                iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+                shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 
-                        return marker;
-                    },
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            });
 
-                    onEachFeature: function (feature, layer) {
-                        const p = feature.properties || {};
+            return L.marker(latlng, { icon: redIcon });
+        },
 
-                        // Trail labels (curved)
-                        if (feature.geometry.type === "LineString" && p.title) {
-                            layer.setText(p.title, {
-                                repeat: false,
-                                center: true,
-                                offset: 6,
-                                attributes: {
-                                    fill: p.stroke || "#00ff88",
-                                    "font-size": "14",
-                                    "font-weight": "bold",
-                                    "letter-spacing": "1",
-                                    "word-spacing": "2",
-                                    "text-shadow": "0 0 3px white"
-                                }
-                            });
-                        }
-                    }
+        onEachFeature: function(feature, layer) {
+            let p = feature.properties || {};
 
-                }).addTo(map);
+            // 🟢 POIs
+            if (feature.geometry.type === "Point") {
 
-                // Fit map to trails
-                map.fitBounds(trailLayer.getBounds());
+                if (p.title) {
 
-                // --- POI label visibility ---
-                function updatePOILabels() {
-                    const zoom = map.getZoom();
+                    layer.bindTooltip(p.title, {
+                        permanent: false,
+                        direction: "right",
+                        offset: [10, 0],
+                        className: "poi-label"
+                    });
 
-                    trailLayer.eachLayer(layer => {
-                        if (layer.getTooltip) {
-                            if (zoom >= 16) {
-                                layer.openTooltip();
-                            } else {
-                                layer.closeTooltip();
-                            }
+                    layer.bindPopup("<b>" + p.title + "</b>");
+                }
+            }
+
+            // 🟡 TRAILS — curved text
+            if (feature.geometry.type === "LineString") {
+
+                if (p.title && layer.setText) {
+
+                    layer.setText(p.title, {
+                        repeat: false,
+                        center: true,
+                        offset: 6,
+                        orientation: 0,
+
+                        attributes: {
+                            fill: p.stroke || "#00ff88",
+                            "font-size": "14",
+                            "font-weight": "bold",
+                            "letter-spacing": "1",
+                            "word-spacing": "2",
+                            "text-shadow": "0 0 3px white"
                         }
                     });
                 }
+            }
+        }
 
-                map.on("zoomend", updatePOILabels);
-                updatePOILabels();
+    }).addTo(map);
 
-                // =====================================================
-                // ✅ MODE DETECTION (SAFE)
-                // =====================================================
+    let bounds = trails.getBounds();
+    window.trailCenter = bounds.getCenter();
 
-                const modeBox = document.getElementById("modeBox");
+    map.fitBounds(bounds);
 
-                const parkCenter = park.center
-                    ? L.latLng(park.center[0], park.center[1])
-                    : trailLayer.getBounds().getCenter();
+    const modeBox = document.getElementById("modeBox");
 
-                const MODE_DISTANCE = 90000; // meters ************************************* change back to 3200 after testing
+    // =====================================================
+    // ✅ MODE DETECTION (ADDED SAFELY)
+    // =====================================================
 
-                function updateMode() {
-                    const mapCenter = map.getCenter();
-                    const distance = mapCenter.distanceTo(parkCenter);
+    const parkCenter = park.center
+        ? L.latLng(park.center[0], park.center[1])
+        : window.trailCenter;
 
-                    if (distance <= MODE_DISTANCE) {
-                        modeBox.innerText = "Hiking Mode";
-                    } else {
-                        modeBox.innerText = "Browse Mode";
-                    }
+    const MODE_DISTANCE = 3200; // meters
+
+    function updateMode() {
+        const mapCenter = map.getCenter();
+        const distance = mapCenter.distanceTo(parkCenter);
+
+        if (distance <= MODE_DISTANCE) {
+            modeBox.innerHTML = "Hiking Mode";
+        } else {
+            modeBox.innerHTML = "Browse Mode";
+        }
+    }
+
+    // Initial mode
+    updateMode();
+
+    // Update when map moves
+    map.on("moveend", updateMode);
+
+    // 🔍 POI label visibility
+    function updatePOILabels() {
+        let zoom = map.getZoom();
+
+        trails.eachLayer(layer => {
+            if (layer.getTooltip()) {
+                if (zoom >= 16) {
+                    layer.openTooltip();
+                } else {
+                    layer.closeTooltip();
                 }
+            }
+        });
+    }
 
-                map.on("moveend", updateMode);
+    updatePOILabels();
+    map.on("zoomend", updatePOILabels);
 
-                updateMode();
-
-            });
-    });
+})
+.catch(err => {
+    document.getElementById("modeBox").innerHTML = "Error loading trails";
+    console.log(err);
+});
