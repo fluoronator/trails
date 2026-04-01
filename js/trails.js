@@ -91,7 +91,7 @@ fetch('data/parks.json')
 
     map.fitBounds(bounds);
 
-    document.getElementById("modeBox").innerHTML = "Browse Mode";
+    document.getElementById("modeBox").innerHTML = "Browse Mode from trails.js";
 
     // 🔍 POI label visibility
     function updatePOILabels() {
