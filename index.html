@@ -269,30 +269,30 @@
             }, 3000);
         }
         
-        // Update user location marker with fixed triangle rotation
+        // Update user location marker with triangle rotating around blue dot center
         function updateUserLocation(lat, lng, heading) {
             if (!userMarker) {
-                // Create custom blue dot marker with direction triangle
-                // The triangle needs to rotate around its bottom point (where it meets the blue dot)
+                // Create marker with separate elements for dot and triangle
+                // This allows the triangle to rotate independently around the dot's center
                 const iconHtml = `
-                    <div style="position: relative; width: 28px; height: 42px;">
-                        <svg width="28" height="42" viewBox="0 0 28 42" style="position: absolute; top: 0; left: 0;">
-                            <!-- Direction triangle - positioned with its tip at top, base at bottom where it meets the dot -->
-                            <polygon points="14,0 8,14 20,14" fill="#007AFF" stroke="white" stroke-width="2" 
-                                     style="transform-origin: 14px 14px; transform: rotate(0deg);"
-                                     class="direction-triangle"/>
-                            <!-- Blue dot (circle) at bottom -->
-                            <circle cx="14" cy="32" r="10" fill="#007AFF" stroke="white" stroke-width="3"/>
-                            <circle cx="14" cy="32" r="12" fill="none" stroke="rgba(0,122,255,0.3)" stroke-width="2"/>
-                        </svg>
+                    <div style="position: relative; width: 40px; height: 40px;">
+                        <!-- Triangle container - rotates around center of blue dot -->
+                        <div class="triangle-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 20px 20px; transition: transform 0.1s ease;">
+                            <svg width="40" height="40" viewBox="0 0 40 40" style="position: absolute; top: 0; left: 0;">
+                                <!-- Direction triangle pointing up from center -->
+                                <polygon points="20,4 14,18 26,18" fill="#007AFF" stroke="white" stroke-width="2"/>
+                            </svg>
+                        </div>
+                        <!-- Blue dot at center -->
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; background: #007AFF; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 0 2px rgba(0,122,255,0.3); z-index: 2;"></div>
                     </div>
                 `;
                 
                 const icon = L.divIcon({
                     html: iconHtml,
                     className: 'custom-div-icon',
-                    iconSize: [28, 42],
-                    iconAnchor: [14, 32]  // Anchor at the center of the blue dot
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20]  // Anchor at the center of the blue dot
                 });
                 
                 userMarker = L.marker([lat, lng], { icon: icon }).addTo(map);
@@ -300,14 +300,12 @@
                 userMarker.setLatLng([lat, lng]);
             }
             
-            // Update direction triangle rotation
+            // Update triangle rotation around the center of the dot
             if (heading !== null && userMarker.getElement()) {
-                const svg = userMarker.getElement().querySelector('svg');
-                const triangle = svg?.querySelector('.direction-triangle');
-                if (triangle) {
-                    // Rotate around the base point (14px from left, 14px from top where triangle meets the dot)
-                    triangle.style.transformOrigin = '14px 14px';
-                    triangle.style.transform = `rotate(${heading}deg)`;
+                const triangleContainer = userMarker.getElement().querySelector('.triangle-container');
+                if (triangleContainer) {
+                    // Rotate around the center (20px, 20px) which is the blue dot center
+                    triangleContainer.style.transform = `rotate(${heading}deg)`;
                 }
             }
             
@@ -332,11 +330,9 @@
                     
                     // Update marker triangle if marker exists
                     if (userMarker && currentLocation) {
-                        const svg = userMarker.getElement()?.querySelector('svg');
-                        const triangle = svg?.querySelector('.direction-triangle');
-                        if (triangle) {
-                            triangle.style.transformOrigin = '14px 14px';
-                            triangle.style.transform = `rotate(${currentHeading}deg)`;
+                        const triangleContainer = userMarker.getElement()?.querySelector('.triangle-container');
+                        if (triangleContainer) {
+                            triangleContainer.style.transform = `rotate(${currentHeading}deg)`;
                         }
                     }
                 }
