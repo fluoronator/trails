@@ -1,26 +1,53 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hiking Map - Version 8.1</title>
+    <meta charset="utf-8" />
+    <title>Trail Map v9</title>
 
-<link rel="stylesheet" href="css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <!-- Your CSS -->
+    <link rel="stylesheet" href="css/style.css" />
+
+    <style>
+        body {
+            margin: 0;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #modeBox {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        }
+    </style>
 </head>
 
 <body>
 
-<div id="versionNumber">8.1</div>
-<div id="modeBox">Loading Trails...</div>
-<div id="elevationBox">Elevation: -- ft</div>
+<div id="map"></div>
+<div id="modeBox">Loading...</div>
 
-<div id="mapWrapper">
-    <div id="map"></div>
-</div>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
+<!-- Leaflet TextPath Plugin -->
+<script src="https://unpkg.com/leaflet-textpath@1.2.3/leaflet.textpath.js"></script>
+
+<!-- Your JS Files -->
 <script src="js/map.js"></script>
 <script src="js/trails.js"></script>
 <script src="js/gps.js"></script>

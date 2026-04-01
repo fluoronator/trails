@@ -5,9 +5,7 @@ fetch('data/parks.json')
 .then(r => r.json())
 .then(parks => {
 
-    // For now just load the first park
     let park = parks[0];
-
     return fetch(park.file);
 
 })
@@ -27,7 +25,7 @@ fetch('data/parks.json')
             };
         },
 
-        // 📍 Default red Leaflet markers for POIs
+        // 📍 Default red pins
         pointToLayer: function(feature, latlng) {
 
             let redIcon = L.icon({
@@ -43,22 +41,44 @@ fetch('data/parks.json')
             return L.marker(latlng, { icon: redIcon });
         },
 
-        // 🏷 Attach popups + tooltips (NOT permanent)
         onEachFeature: function(feature, layer) {
             let p = feature.properties || {};
 
-            if (p.title) {
+            // 🟢 POIs (points)
+            if (feature.geometry.type === "Point") {
 
-                // Popup (optional)
-                layer.bindPopup("<b>" + p.title + "</b>");
+                if (p.title) {
 
-                // Tooltip (hidden by default)
-                layer.bindTooltip(p.title, {
-                    permanent: false,
-                    direction: "right",
-                    offset: [10, 0],
-                    className: "poi-label"
-                });
+                    layer.bindPopup("<b>" + p.title + "</b>");
+
+                    layer.bindTooltip(p.title, {
+                        permanent: false,
+                        direction: "right",
+                        offset: [10, 0],
+                        className: "poi-label"
+                    });
+                }
+            }
+
+            // 🟡 TRAILS (lines)
+            if (feature.geometry.type === "LineString") {
+
+                if (p.title && layer.setText) {
+
+                    layer.setText(p.title, {
+                        repeat: false,
+                        center: true,
+                        offset: 0,
+                        orientation: 0,
+
+                        attributes: {
+                            fill: p.stroke || "#00ff88",
+                            "font-size": "14",
+                            "font-weight": "bold",
+                            "text-shadow": "0 0 3px white"
+                        }
+                    });
+                }
             }
         }
 
@@ -71,7 +91,7 @@ fetch('data/parks.json')
 
     document.getElementById("modeBox").innerHTML = "Browse Mode";
 
-    // 🔍 Control label visibility based on zoom
+    // 🔍 POI label visibility
     function updatePOILabels() {
         let zoom = map.getZoom();
 
@@ -86,10 +106,7 @@ fetch('data/parks.json')
         });
     }
 
-    // Run once
     updatePOILabels();
-
-    // Update on zoom
     map.on("zoomend", updatePOILabels);
 
 })
