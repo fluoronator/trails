@@ -15,10 +15,15 @@ fetch('data/parks.json')
 .then(data => {
 
     let trails = L.geoJSON(data, {
-        style: {
-            color: "#00ff88",
-            weight: 4
-        }
+        style: function(feature) {
+    let p = feature.properties || {};
+
+    return {
+        color: p.stroke || "#00ff88",
+        weight: p["stroke-width"] || 4,
+        opacity: p["stroke-opacity"] || 1
+    };
+}
     }).addTo(map);
 
     let bounds = trails.getBounds();
