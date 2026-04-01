@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Live Orientation Map</title>
+<title>Rotating Map</title>
 
-<!-- Leaflet (open source) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -14,16 +13,23 @@ html, body {
     margin: 0;
     padding: 0;
     height: 100%;
-    background: #000;
+    background: black;
+    overflow: hidden;
+}
+
+/* This wrapper rotates instead of the map itself */
+#mapWrapper {
+    height: 100%;
+    width: 100%;
+    transform-origin: center center;
+    transition: transform 0.15s linear;
 }
 
 #map {
     height: 100%;
     width: 100%;
-    transition: transform 0.15s linear;
 }
 
-/* Clean mobile look */
 .leaflet-control-zoom {
     display: none;
 }
@@ -31,7 +37,9 @@ html, body {
 </head>
 <body>
 
-<div id="map"></div>
+<div id="mapWrapper">
+    <div id="map"></div>
+</div>
 
 <script>
 let map = L.map('map', {
@@ -39,12 +47,12 @@ let map = L.map('map', {
     attributionControl: false
 }).setView([0,0], 18);
 
-// OpenStreetMap (free, no key required)
+// OpenStreetMap tiles (free)
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19
 }).addTo(map);
 
-// Blue location dot
+// Blue dot
 let userMarker = L.circleMarker([0,0], {
     radius: 8,
     color: '#fff',
@@ -62,61 +70,72 @@ let accuracyCircle = L.circle([0,0], {
     weight: 1
 }).addTo(map);
 
-// Get location
-if (navigator.geolocation) {
-    navigator.geolocation.watchPosition(position => {
+// Track location
+navigator.geolocation.watchPosition(position => {
 
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-        const accuracy = position.coords.accuracy;
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
+    const accuracy = position.coords.accuracy;
 
-        userMarker.setLatLng([lat, lon]);
-        accuracyCircle.setLatLng([lat, lon]);
-        accuracyCircle.setRadius(accuracy);
+    userMarker.setLatLng([lat, lon]);
+    accuracyCircle.setLatLng([lat, lon]);
+    accuracyCircle.setRadius(accuracy);
 
-        map.setView([lat, lon], 18);
+    map.setView([lat, lon], 18);
 
-    }, error => {
-        alert("Location permission required for this page to work.");
-    }, {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 5000
-    });
-}
+}, error => {
+    alert("Location permission is required.");
+}, {
+    enableHighAccuracy: true,
+    maximumAge: 0,
+    timeout: 5000
+});
 
-// Phone rotation → rotate map
-let currentRotation = 0;
+// ===== Rotation logic =====
 
-function rotateMap(deg) {
-    const mapElement = document.getElementById("map");
-    mapElement.style.transform = `rotate(${-deg}deg)`;
+let mapWrapper = document.getElementById("mapWrapper");
+let lastHeading = 0;
+
+function rotateMap(heading) {
+    mapWrapper.style.transform = `rotate(${-heading}deg)`;
 }
 
 // iPhone requires permission
-function requestOrientationPermission() {
+function enableOrientation() {
 
     if (typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
         .then(permissionState => {
             if (permissionState === 'granted') {
-                window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+                window.addEventListener("deviceorientation", handleOrientation, true);
             }
         })
         .catch(console.error);
     } else {
-        window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+        window.addEventListener("deviceorientation", handleOrientation, true);
     }
 }
 
 function handleOrientation(event) {
-    if (event.alpha !== null) {
-        rotateMap(event.alpha);
+
+    let heading;
+
+    // iPhone
+    if (event.webkitCompassHeading !== undefined) {
+        heading = event.webkitCompassHeading;
+    }
+    // Android
+    else if (event.alpha !== null) {
+        heading = 360 - event.alpha;
+    }
+
+    if (heading !== undefined) {
+        rotateMap(heading);
     }
 }
 
 // Ask permission on first tap
-document.body.addEventListener("click", requestOrientationPermission, { once: true });
+document.body.addEventListener("click", enableOrientation, { once: true });
 </script>
 
 </body>
