@@ -326,7 +326,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v7-debug</div>
+  <div id="version-badge">v8-debug</div>
   <div id="debug-panel"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -785,30 +785,14 @@ map.whenReady(function() {
     });
   }
 
-  // Let _onDown run UNmodified so Leaflet stores the real unrotated startPoint.
-  // Then immediately rotate that stored _startPoint into the same rotated space
-  // that _onMove will use. This way the first delta is zero (not a big jump).
-  const origOnDown = draggable._onDown.bind(draggable);
-  draggable._onDown = function(e) {
-    origOnDown(e);
-    const h = currentHeading;
-    if (!h) return;
-    const sp = draggable._startPoint;
-    const lp = draggable._lastPoint;
-    dbg(`DOWN h=${h.toFixed(1)}`);
-    dbg(`  _startPoint=${sp ? sp.x.toFixed(0)+','+sp.y.toFixed(0) : 'null'}`);
-    dbg(`  _lastPoint=${lp ? lp.x.toFixed(0)+','+lp.y.toFixed(0) : 'null'}`);
-    if (sp) {
-      const r = rotatePointAroundCenter(sp.x, sp.y, h);
-      dbg(`  _startPoint rotated→${r.x.toFixed(0)},${r.y.toFixed(0)}`);
-      draggable._startPoint = L.point(r.x, r.y);
-    }
-    if (lp) {
-      const r = rotatePointAroundCenter(lp.x, lp.y, h);
-      dbg(`  _lastPoint rotated→${r.x.toFixed(0)},${r.y.toFixed(0)}`);
-      draggable._lastPoint = L.point(r.x, r.y);
-    }
-  };
+  // _onDown cannot be patched reliably (Leaflet binds it before whenReady).
+  // Instead: in _onMove, we detect when _startPoint changed (new drag began)
+  // and immediately replace it with its rotated equivalent. This ensures
+  // Leaflet's first delta (newPoint - startPoint) is in rotated space,
+  // eliminating the jump on first move.
+
+  let lastRawStartX = null;
+  let lastRawStartY = null;
 
   const origOnMove = draggable._onMove.bind(draggable);
   let moveCount = 0;
@@ -816,25 +800,32 @@ map.whenReady(function() {
     const h = currentHeading;
     if (!h) { origOnMove(e); return; }
 
+    // If _startPoint changed since last move, Leaflet just set it in _onDown.
+    // Rotate it now so all deltas are computed in rotated space.
+    const sp = draggable._startPoint;
+    if (sp && (sp.x !== lastRawStartX || sp.y !== lastRawStartY)) {
+      lastRawStartX = sp.x;
+      lastRawStartY = sp.y;
+      const r = rotatePointAroundCenter(sp.x, sp.y, h);
+      draggable._startPoint = L.point(r.x, r.y);
+      if (moveCount < 6) dbg(`NEW DRAG: rawStart=${sp.x.toFixed(0)},${sp.y.toFixed(0)} → rotStart=${r.x.toFixed(0)},${r.y.toFixed(0)}`);
+    }
+
     let clientX, clientY;
     if (e.touches && e.touches.length > 0) {
       const t = e.touches[0];
       const r = rotatePointAroundCenter(t.clientX, t.clientY, h);
       clientX = r.x; clientY = r.y;
-      if (moveCount < 3) {
-        dbg(`MOVE#${moveCount} raw=${t.clientX.toFixed(0)},${t.clientY.toFixed(0)}`);
-        dbg(`  rot=${clientX.toFixed(0)},${clientY.toFixed(0)}`);
-        dbg(`  _startPt=${draggable._startPoint ? draggable._startPoint.x.toFixed(0)+','+draggable._startPoint.y.toFixed(0) : 'null'}`);
-        dbg(`  _lastPt=${draggable._lastPoint ? draggable._lastPoint.x.toFixed(0)+','+draggable._lastPoint.y.toFixed(0) : 'null'}`);
+      if (moveCount < 6) {
+        dbg(`MOVE#${moveCount} raw=${t.clientX.toFixed(0)},${t.clientY.toFixed(0)} rot=${clientX.toFixed(0)},${clientY.toFixed(0)}`);
+        dbg(`  start=${draggable._startPoint.x.toFixed(0)},${draggable._startPoint.y.toFixed(0)} delta=${(clientX-draggable._startPoint.x).toFixed(0)},${(clientY-draggable._startPoint.y).toFixed(0)}`);
       }
     } else {
       const r = rotatePointAroundCenter(e.clientX, e.clientY, h);
       clientX = r.x; clientY = r.y;
-      if (moveCount < 3) {
-        dbg(`MOVE#${moveCount} raw=${e.clientX.toFixed(0)},${e.clientY.toFixed(0)}`);
-        dbg(`  rot=${clientX.toFixed(0)},${clientY.toFixed(0)}`);
-        dbg(`  _startPt=${draggable._startPoint ? draggable._startPoint.x.toFixed(0)+','+draggable._startPoint.y.toFixed(0) : 'null'}`);
-        dbg(`  _lastPt=${draggable._lastPoint ? draggable._lastPoint.x.toFixed(0)+','+draggable._lastPoint.y.toFixed(0) : 'null'}`);
+      if (moveCount < 6) {
+        dbg(`MOVE#${moveCount} raw=${e.clientX.toFixed(0)},${e.clientY.toFixed(0)} rot=${clientX.toFixed(0)},${clientY.toFixed(0)}`);
+        dbg(`  start=${draggable._startPoint.x.toFixed(0)},${draggable._startPoint.y.toFixed(0)} delta=${(clientX-draggable._startPoint.x).toFixed(0)},${(clientY-draggable._startPoint.y).toFixed(0)}`);
       }
     }
     moveCount++;
