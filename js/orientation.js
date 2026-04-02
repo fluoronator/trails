@@ -59,7 +59,7 @@ function handleOrientation(event) {
     }
     // Android/standard: alpha is CCW degrees from north. Convert to CW.
     else if (event.alpha !== null && event.alpha !== undefined) {
-        rawHeading = (360 - event.alpha) % 360;
+        rawHeading = event.alpha;
     }
 
     if (rawHeading === undefined) return;
