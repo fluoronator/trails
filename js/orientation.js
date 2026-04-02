@@ -34,7 +34,7 @@ function applyRotation(heading) {
 
     // North arrow counter-rotates to always visually point true north.
     northArrow.style.transform = `rotate(${heading}deg)`;
-    //northArrow.style.transform = `rotate({rawHeading}deg)`;
+    //northArrow.style.transform = `rotate({-heading}deg)`;
 
 
     // Expose the current visual rotation so gps.js can correct drag vectors.
