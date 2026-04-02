@@ -318,7 +318,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v22</div>
+  <div id="version-badge">v23</div>
 
   <div id="status-toast" class="hidden">Ready</div>
 
@@ -652,8 +652,8 @@ function loadPark(park) {
       document.getElementById('park-name').textContent = '🥾 ' + parkName;
       lastGeojsonData = data;
       showToast('Trails loaded ✓');
-      buildTrailLabels(data);
-      // Check label visibility at initial zoom
+      // Trail labels disabled — revisit later
+      // buildTrailLabels(data);
       setTimeout(updatePoiLabelVisibility, 800);
       startGeolocation();
     })
