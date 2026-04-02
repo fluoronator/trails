@@ -27,9 +27,10 @@ function shortestAngleDelta(from, to) {
 }
 
 function applyRotation(heading) {
-    // Use the raw (unbounded) heading for the CSS transform — browsers handle it fine.
-    mapWrapper.style.transform =
-        `translate(-50%, -50%) rotate(${-heading}deg)`;
+    // scale(1.5) keeps corners covered at all angles; rotate() spins the map.
+    // The wrapper is 100vw×100vh in layout space so it never inflates vw/vh
+    // calculations for the UI overlay — scale only affects visual rendering.
+    mapWrapper.style.transform = `scale(1.5) rotate(${-heading}deg)`;
 
     // North arrow counter-rotates to always visually point true north.
     northArrow.style.transform = `rotate(${heading}deg)`;
@@ -43,7 +44,7 @@ function applyRotation(heading) {
 function handleOrientation(event) {
     if (!window.isHikingMode) {
         if (mapWrapper) {
-            mapWrapper.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+            mapWrapper.style.transform = 'scale(1.5) rotate(0deg)';
         }
         window.mapRotationDeg = 0;
         return;

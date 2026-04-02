@@ -17,20 +17,21 @@ body {
 }
 
 /* ── MAP ROTATION WRAPPER ─────────────────────
-   This fills a large area so that when rotated,
-   the map viewport never shows empty corners.
-   We scale it up so corners are always covered. */
+   Stays exactly 100vw × 100vh in layout space so it never
+   affects how the browser computes vw/vh for other elements.
+   We use scale(1.5) to visually expand beyond the viewport
+   so corners stay covered at any rotation angle (sqrt(2)≈1.415).
+   orientation.js updates the full transform string:
+     scale(1.5) rotate(Xdeg)
+   keeping scale constant and only changing the angle. */
 #map-rotate-wrapper {
     position: fixed;
-    /* Expand beyond viewport so rotation doesn't reveal corners.
-       sqrt(2) ≈ 1.415, so 150% guarantees coverage at all angles */
-    top: 50%;
-    left: 50%;
-    width: 150vmax;
-    height: 150vmax;
-    transform: translate(-50%, -50%);
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     transform-origin: center center;
-    transition: transform 0.2s ease-out;
+    transform: scale(1.5);
     will-change: transform;
     z-index: 1;
 }

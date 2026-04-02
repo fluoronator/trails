@@ -40,8 +40,10 @@ function setMode(mode) {
         modeIcon.textContent = "🗺";
         modeText.textContent = "Browse Mode";
         northArrow.classList.add("hidden");
-        // In browse mode, no rotation
-        setMapRotation(0);
+        // In browse mode, reset rotation
+        const wrapper = document.getElementById("map-rotate-wrapper");
+        if (wrapper) wrapper.style.transform = 'scale(1.5) rotate(0deg)';
+        window.mapRotationDeg = 0;
     }
 }
 
