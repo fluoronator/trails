@@ -210,6 +210,54 @@
     }
     .leaflet-control-zoom a:hover { background: var(--surface) !important; }
 
+    /* ── Map rotation (compass heading) ──
+       We rotate the Leaflet tile pane and overlay panes together,
+       then counter-rotate controls so they stay upright.        */
+    #map-rotate-container {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      /* rotation applied via JS: transform: rotate(Xdeg) */
+      transform-origin: center center;
+      transition: transform 0.3s ease-out;
+      /* Enlarge slightly so corners don't show background when rotated */
+      width: 130%; height: 130%;
+      top: -15%; left: -15%;
+    }
+
+    /* Counter-rotate Leaflet controls to keep them upright */
+    .leaflet-control-zoom,
+    .leaflet-control-attribution {
+      transition: transform 0.3s ease-out;
+      transform-origin: bottom right;
+    }
+
+    /* Compass rose badge — shown when rotation is active */
+    #compass-badge {
+      position: fixed;
+      top: calc(var(--panel-h) + 10px);
+      right: 12px;
+      width: 36px; height: 36px;
+      background: rgba(22,27,34,0.90);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1001;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.4s;
+      pointer-events: none;
+    }
+    #compass-badge.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #compass-needle {
+      font-size: 20px;
+      line-height: 1;
+      transition: transform 0.3s ease-out;
+    }
+
     /* Trail tooltip */
     .trail-tip {
       background: rgba(13,17,23,0.82) !important;
@@ -232,6 +280,11 @@
 </div>
 
 <div id="map"></div>
+
+<!-- Compass rose — tap to reset north-up -->
+<div id="compass-badge" title="Tap to reset North-up">
+  <div id="compass-needle">🧭</div>
+</div>
 
 <div id="status-toast" class="hidden">Ready</div>
 
@@ -258,7 +311,7 @@ const PARKS = [
     // If the user is within this many metres of the park centre, Hiking mode activates.
     // Reduce this to a small number (e.g. 100) while testing from your desk,
     // then set to ~3200 for production.
-    hikingRadius:  90000,        // ← EDIT for testing
+    hikingRadius:  50000,        // ← EDIT for testing
     defaultZoom:   17,
     defaultCenter: null,         // null = auto-computed from GeoJSON bounds centre
   }
@@ -306,6 +359,7 @@ const state = {
   mode:         'browsing',   // 'browsing' | 'hiking'
   tracking:     false,        // whether map follows user
   userLatLng:   null,
+  heading:      null,         // compass bearing in degrees (0 = north)
   currentLayer: 'map',
   parkCenter:   null,         // L.LatLng
   parkBounds:   null,         // L.LatLngBounds
@@ -560,8 +614,9 @@ function enableTracking() {
   locBtn.textContent = 'Go to Park';
   locBtn.classList.add('go-park');
   if (state.userLatLng) {
-    map.flyTo(state.userLatLng, state.defaultZoom, { duration: 1.2 });
+    map.setView(state.userLatLng, state.defaultZoom, { animate: true, duration: 1.2 });
   }
+  startCompass();
 }
 
 function disableTracking() {
@@ -569,30 +624,44 @@ function disableTracking() {
   const locBtn = document.getElementById('locate-btn');
   locBtn.textContent = 'Find Me';
   locBtn.classList.remove('go-park');
+  // Return map to North-up when leaving hiking/tracking mode
+  applyRotation(0);
+  currentRotation  = 0;
+  smoothedHeading  = null;
 }
 
 /* ═══════════════════════════════════════════════════════
    MAP INTERACTION — pause tracking while user pans/zooms
 ═══════════════════════════════════════════════════════ */
+
+// User starts dragging — immediately pause follow
 map.on('dragstart', () => {
   if (!state.tracking) return;
   state.userPanning = true;
   clearTimeout(state.returnTimer);
+  clearTimeout(state.zoomTimer);
+});
+
+// User releases drag — start countdown to re-centre
+map.on('dragend', () => {
+  if (!state.tracking) return;
+  clearTimeout(state.returnTimer);
   state.returnTimer = setTimeout(() => {
     state.userPanning = false;
     if (state.tracking && state.userLatLng) {
-      map.panTo(state.userLatLng, { animate: true, duration: 0.8 });
+      map.setView(state.userLatLng, map.getZoom(), { animate: true, duration: 0.8 });
     }
   }, RETURN_TO_USER_MS);
 });
 
+// If user zooms way out, restore default zoom after delay
 map.on('zoomend', () => {
-  if (!state.tracking) return;
+  if (!state.tracking || state.userPanning) return;
   if (map.getZoom() < state.defaultZoom - 3) {
     clearTimeout(state.zoomTimer);
     state.zoomTimer = setTimeout(() => {
       if (state.tracking && state.userLatLng) {
-        map.flyTo(state.userLatLng, state.defaultZoom, { duration: 1.2 });
+        map.setView(state.userLatLng, state.defaultZoom, { animate: true, duration: 0.8 });
       }
     }, ZOOM_RETURN_MS);
   }
@@ -619,7 +688,7 @@ function startGeolocation() {
       applyMode(newMode);
 
       if (state.tracking && !state.userPanning) {
-        map.panTo(latlng, { animate: true, duration: 0.5 });
+        map.setView(latlng, map.getZoom(), { animate: true, duration: 0.5 });
       }
 
       const acc = pos.coords.accuracy
@@ -662,6 +731,143 @@ document.getElementById('locate-btn').addEventListener('click', () => {
     }
   }
 });
+
+/* ═══════════════════════════════════════════════════════
+   COMPASS / MAP ROTATION
+   Strategy: rotate the Leaflet map panes (tile, overlay,
+   marker) together using CSS transform on a wrapper div.
+   Counter-rotate Leaflet's own controls so they stay upright.
+   The user marker is also counter-rotated so it stays a dot.
+═══════════════════════════════════════════════════════ */
+
+// Grab the panes we want to rotate together
+// We rotate the entire map container element instead of individual panes
+// so that tiles, vectors, and markers all move together correctly.
+const mapEl = document.getElementById('map');
+
+let currentRotation   = 0;   // degrees currently applied
+let targetRotation    = 0;   // degrees we want to reach
+let rotationLocked    = false; // true = user has tapped compass to lock North-up
+let rotationRAF       = null;
+
+function applyRotation(deg) {
+  // Normalise to -180..180 to always take the short arc
+  let delta = ((deg - currentRotation) % 360 + 360) % 360;
+  if (delta > 180) delta -= 360;
+  currentRotation = currentRotation + delta;
+
+  // Rotate the map element
+  mapEl.style.transform         = `rotate(${-currentRotation}deg)`;
+  mapEl.style.transformOrigin   = '50% 50%';
+  // Expand map so rotated corners don't reveal the background
+  mapEl.style.width              = '150vmax';
+  mapEl.style.height             = '150vmax';
+  mapEl.style.top                = '-25vmax';
+  mapEl.style.left               = '-25vmax';
+
+  // Counter-rotate Leaflet controls so they stay upright
+  const counterDeg = `rotate(${currentRotation}deg)`;
+  document.querySelectorAll(
+    '.leaflet-control-zoom, .leaflet-control-attribution'
+  ).forEach(el => {
+    el.style.transform = counterDeg;
+  });
+
+  // Rotate the compass needle to always show North
+  const needle = document.getElementById('compass-needle');
+  if (needle) needle.style.transform = `rotate(${currentRotation}deg)`;
+
+  // Show/hide the compass badge
+  const badge = document.getElementById('compass-badge');
+  if (badge) {
+    if (Math.abs(currentRotation % 360) > 2) {
+      badge.classList.add('visible');
+    } else {
+      badge.classList.remove('visible');
+    }
+  }
+
+  // Invalidate map size so Leaflet recalculates tile positions
+  map.invalidateSize({ pan: false });
+}
+
+function resetNorthUp() {
+  rotationLocked = true;
+  applyRotation(0);
+  currentRotation = 0;
+  targetRotation  = 0;
+  setTimeout(() => { rotationLocked = false; }, 3000);
+}
+
+// Compass badge tap — reset to north
+document.getElementById('compass-badge').addEventListener('click', resetNorthUp);
+
+// Smooth heading filter (low-pass) to avoid jitter
+let smoothedHeading = null;
+const HEADING_ALPHA = 0.15; // lower = smoother but slower
+
+function smoothHeading(raw) {
+  if (smoothedHeading === null) { smoothedHeading = raw; return raw; }
+  // Handle 0/360 wraparound
+  let diff = raw - smoothedHeading;
+  if (diff >  180) diff -= 360;
+  if (diff < -180) diff += 360;
+  smoothedHeading += HEADING_ALPHA * diff;
+  smoothedHeading = ((smoothedHeading % 360) + 360) % 360;
+  return smoothedHeading;
+}
+
+// Device orientation handler
+function onDeviceOrientation(e) {
+  // Only rotate when in hiking mode and tracking
+  if (!state.tracking || state.mode !== 'hiking') {
+    if (currentRotation !== 0) applyRotation(0);
+    return;
+  }
+  if (rotationLocked) return;
+
+  let heading = null;
+
+  // iOS: webkitCompassHeading is the most reliable
+  if (typeof e.webkitCompassHeading === 'number' && e.webkitCompassHeading >= 0) {
+    heading = e.webkitCompassHeading;
+  } else if (e.absolute && e.alpha != null) {
+    // Android absolute orientation: convert alpha to compass bearing
+    heading = (360 - e.alpha) % 360;
+  } else if (e.alpha != null) {
+    // Android non-absolute — less reliable but usable
+    heading = (360 - e.alpha) % 360;
+  }
+
+  if (heading === null) return;
+
+  const smoothed = smoothHeading(heading);
+  state.heading = smoothed;
+  applyRotation(smoothed);
+}
+
+function startCompass() {
+  // iOS 13+ requires permission for DeviceOrientationEvent
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(response => {
+        if (response === 'granted') {
+          window.addEventListener('deviceorientationabsolute', onDeviceOrientation, true);
+          window.addEventListener('deviceorientation',         onDeviceOrientation, true);
+        } else {
+          showToast('Compass permission denied — North-up only');
+        }
+      })
+      .catch(() => {
+        showToast('Compass unavailable');
+      });
+  } else {
+    // Android / desktop — no permission needed
+    window.addEventListener('deviceorientationabsolute', onDeviceOrientation, true);
+    window.addEventListener('deviceorientation',         onDeviceOrientation, true);
+  }
+}
 
 /* ═══════════════════════════════════════════════════════
    BOOT
