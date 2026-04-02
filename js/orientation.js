@@ -32,11 +32,10 @@ function applyRotation(heading) {
     // it never inflates vw/vh calculations for the UI overlay.
     mapWrapper.style.transform = `scale(2) rotate(${-heading}deg)`;
 
-    // North arrow counter-rotates to always visually point true north.
-    // The map wrapper is already rotated by -heading, so the arrow only needs
-    // to rotate by +heading (not a full independent heading) to appear upright.
-    // Using `heading` directly (unbounded) avoids any normalization artifact.
-    northArrow.style.transform = `rotate(${heading}deg)`;
+    // North arrow lives in #ui-overlay which is NOT rotated with the map.
+    // To point true north in the phone's fixed frame: when heading=90 (phone
+    // facing east), north is to the left, so rotate the arrow by -heading.
+    northArrow.style.transform = `rotate(${-heading}deg)`;
 
     // Expose the current visual rotation so gps.js can correct drag vectors.
     window.mapRotationDeg = ((heading % 360) + 360) % 360;
