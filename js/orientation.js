@@ -33,7 +33,7 @@ function applyRotation(heading) {
     mapWrapper.style.transform = `scale(2) rotate(${-heading}deg)`;
 
     // North arrow counter-rotates to always visually point true north.
-    northArrow.style.transform = `rotate(${heading}deg)`;
+    //northArrow.style.transform = `rotate(0deg)`;
 
     // Expose the current visual rotation so gps.js can correct drag vectors.
     window.mapRotationDeg = ((heading % 360) + 360) % 360;
