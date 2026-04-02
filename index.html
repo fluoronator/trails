@@ -1,44 +1,95 @@
-let mapWrapper = document.getElementById("mapWrapper");
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Trail Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-function rotateMap(deg) {
-    mapWrapper.style.transform = "rotate(" + (-deg) + "deg)";
-}
+    <!-- Prevent caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
 
-function isHikingMode() {
-    let modeBox = document.getElementById("modeBox");
-    return modeBox && modeBox.innerText.includes("Hiking");
-}
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-function handleOrientation(event) {
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 
-    let heading;
+    <link rel="stylesheet" href="css/style.css" />
+</head>
 
-    if (event.webkitCompassHeading !== undefined) {
-        heading = event.webkitCompassHeading;
-    }
-    else if (event.alpha !== null) {
-        heading = 360 - event.alpha;
-    }
+<body>
 
-    if (heading !== undefined) {
-        if (isHikingMode()) {
-            rotateMap(heading);
-        } else {
-            rotateMap(0);
-        }
-    }
-}
+<!-- Map rotation wrapper: this whole div gets CSS-rotated for heading -->
+<div id="map-rotate-wrapper">
+    <div id="map"></div>
+</div>
 
-// permission (unchanged)
-if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    document.body.addEventListener("click", function() {
-        DeviceOrientationEvent.requestPermission()
-        .then(function(permissionState) {
-            if (permissionState === 'granted') {
-                window.addEventListener("deviceorientation", handleOrientation);
-            }
-        });
-    }, { once: true });
-} else {
-    window.addEventListener("deviceorientation", handleOrientation);
-}
+<!-- UI overlay — NOT inside the rotation wrapper so controls stay upright -->
+<div id="ui-overlay">
+
+    <!-- Mode badge -->
+    <div id="modeBox">
+        <span id="modeIcon">⧖</span>
+        <span id="modeText">Locating…</span>
+    </div>
+
+    <!-- North arrow (only visible in hiking mode) -->
+    <div id="northArrow" class="hidden">
+        <svg viewBox="0 0 40 40" width="40" height="40">
+            <polygon points="20,4 26,20 20,17 14,20" fill="#e74c3c" />
+            <polygon points="20,36 26,20 20,23 14,20" fill="#bbb" />
+            <text x="20" y="11" text-anchor="middle" fill="white" font-size="6" font-family="Rajdhani" font-weight="700">N</text>
+        </svg>
+    </div>
+
+    <!-- Re-center button (appears when user pans away in hiking mode) -->
+    <button id="recenterBtn" class="hidden" onclick="recenterToUser()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="4"/>
+            <line x1="12" y1="2" x2="12" y2="6"/>
+            <line x1="12" y1="18" x2="12" y2="22"/>
+            <line x1="2" y1="12" x2="6" y2="12"/>
+            <line x1="18" y1="12" x2="22" y2="12"/>
+        </svg>
+        Return to Me
+    </button>
+
+    <!-- Basemap selector -->
+    <div id="basemapSelector">
+        <button class="basemap-btn active" data-layer="standard" onclick="switchBasemap('standard', this)">
+            🗺 Map
+        </button>
+        <button class="basemap-btn" data-layer="topo" onclick="switchBasemap('topo', this)">
+            ⛰ Topo
+        </button>
+        <button class="basemap-btn" data-layer="satellite" onclick="switchBasemap('satellite', this)">
+            🛰 Sat
+        </button>
+    </div>
+
+    <!-- Zoom controls -->
+    <div id="zoomControls">
+        <button onclick="map.zoomIn()" class="zoom-btn">+</button>
+        <button onclick="map.zoomOut()" class="zoom-btn">−</button>
+    </div>
+
+</div>
+
+<!-- Leaflet -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Trail text plugin -->
+<script src="https://unpkg.com/leaflet-textpath@1.2.3/leaflet.textpath.js"></script>
+
+<!-- App JS -->
+<script src="js/map.js"></script>
+<script src="js/trails.js"></script>
+<script src="js/gps.js"></script>
+<script src="js/orientation.js"></script>
+
+</body>
+</html>
