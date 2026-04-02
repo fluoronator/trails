@@ -318,7 +318,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v21</div>
+  <div id="version-badge">v22</div>
 
   <div id="status-toast" class="hidden">Ready</div>
 
@@ -370,6 +370,7 @@ const PARKS = [
     // Use a large number (e.g. 999999) to force Hiking mode while testing.
     hikingRadius:  3200,
     defaultZoom:   17,
+    hikingZoom:    19,    // zoom level when following user on foot
     defaultCenter: null,           // null = auto-computed from GeoJSON bounds
   }
 ];
@@ -406,6 +407,7 @@ const S = {
   parkCenter:   null,
   parkBounds:   null,
   defaultZoom:  PARKS[0].defaultZoom,
+  hikingZoom:   PARKS[0].hikingZoom,
   recenterTimer: null,
   zoomTimer:    null,
 };
@@ -728,7 +730,7 @@ function showRecenterBtn(show) {
 
 function recenterToUser() {
   if (!S.userLatLng) return;
-  map.setView(S.userLatLng, Math.max(map.getZoom(), S.defaultZoom));
+  map.setView(S.userLatLng, Math.max(map.getZoom(), S.hikingZoom));
   S.userMovedMap = false;
   showRecenterBtn(false);
   clearTimeout(S.recenterTimer);
@@ -802,7 +804,7 @@ function startGeolocation() {
         const wasHiking  = S.isHiking;
         setMode(shouldHike ? 'hiking' : 'browsing');
         if (shouldHike && !wasHiking && !S.hasCentered) {
-          map.setView(latlng, S.defaultZoom);
+          map.setView(latlng, S.hikingZoom);
           S.hasCentered = true;
         }
       }
@@ -844,7 +846,7 @@ document.getElementById('locate-btn').addEventListener('click', () => {
       S.userMovedMap = false;
       btn.textContent = 'Go to Park';
       btn.classList.add('go-park');
-      map.setView(S.userLatLng, S.defaultZoom);
+      map.setView(S.userLatLng, S.hikingZoom);
       // While isTracking in browse mode, pan on each GPS update
     } else {
       showToast('Waiting for location…');
