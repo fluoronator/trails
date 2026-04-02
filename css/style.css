@@ -146,21 +146,6 @@ body {
     background: rgba(30, 80, 40, 0.95);
 }
 
-//For Debugging
-#heading-debug {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.6);
-    color: #0f0;
-    font-size: 14px;
-    border-radius: 4px;
-    z-index: 9999;
-    font-family: monospace;
-}
-//End for debugging
-
 /* ── BASEMAP SELECTOR ─────────────────────────*/
 #basemapSelector {
     position: absolute;
