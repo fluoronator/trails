@@ -326,7 +326,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v8-debug</div>
+  <div id="version-badge">v9-debug</div>
   <div id="debug-panel"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -785,14 +785,15 @@ map.whenReady(function() {
     });
   }
 
-  // _onDown cannot be patched reliably (Leaflet binds it before whenReady).
-  // Instead: in _onMove, we detect when _startPoint changed (new drag began)
-  // and immediately replace it with its rotated equivalent. This ensures
-  // Leaflet's first delta (newPoint - startPoint) is in rotated space,
-  // eliminating the jump on first move.
+  // Leaflet updates _startPoint on every move (it's a running reference),
+  // so we cannot use _startPoint changes to detect new drags.
+  // Instead we track the raw touch/mouse position: a jump > 20px means
+  // the finger was lifted and a new drag began.
 
-  let lastRawStartX = null;
-  let lastRawStartY = null;
+  let lastRawX = null;
+  let lastRawY = null;
+  let rotatedStartX = null;
+  let rotatedStartY = null;
 
   const origOnMove = draggable._onMove.bind(draggable);
   let moveCount = 0;
@@ -800,37 +801,58 @@ map.whenReady(function() {
     const h = currentHeading;
     if (!h) { origOnMove(e); return; }
 
-    // If _startPoint changed since last move, Leaflet just set it in _onDown.
-    // Rotate it now so all deltas are computed in rotated space.
-    const sp = draggable._startPoint;
-    if (sp && (sp.x !== lastRawStartX || sp.y !== lastRawStartY)) {
-      lastRawStartX = sp.x;
-      lastRawStartY = sp.y;
-      const r = rotatePointAroundCenter(sp.x, sp.y, h);
-      draggable._startPoint = L.point(r.x, r.y);
-      if (moveCount < 6) dbg(`NEW DRAG: rawStart=${sp.x.toFixed(0)},${sp.y.toFixed(0)} → rotStart=${r.x.toFixed(0)},${r.y.toFixed(0)}`);
+    // Get raw pointer position
+    let rawX, rawY;
+    if (e.touches && e.touches.length > 0) {
+      rawX = e.touches[0].clientX;
+      rawY = e.touches[0].clientY;
+    } else {
+      rawX = e.clientX;
+      rawY = e.clientY;
     }
 
-    let clientX, clientY;
-    if (e.touches && e.touches.length > 0) {
-      const t = e.touches[0];
-      const r = rotatePointAroundCenter(t.clientX, t.clientY, h);
-      clientX = r.x; clientY = r.y;
-      if (moveCount < 6) {
-        dbg(`MOVE#${moveCount} raw=${t.clientX.toFixed(0)},${t.clientY.toFixed(0)} rot=${clientX.toFixed(0)},${clientY.toFixed(0)}`);
-        dbg(`  start=${draggable._startPoint.x.toFixed(0)},${draggable._startPoint.y.toFixed(0)} delta=${(clientX-draggable._startPoint.x).toFixed(0)},${(clientY-draggable._startPoint.y).toFixed(0)}`);
+    // Detect new drag: finger jumped more than 20px from last known position
+    const isNewDrag = lastRawX === null ||
+      Math.abs(rawX - lastRawX) > 20 ||
+      Math.abs(rawY - lastRawY) > 20;
+
+    if (isNewDrag) {
+      // New drag started — rotate the current _startPoint once and freeze it
+      const sp = draggable._startPoint;
+      if (sp) {
+        const r = rotatePointAroundCenter(sp.x, sp.y, h);
+        rotatedStartX = r.x;
+        rotatedStartY = r.y;
+        draggable._startPoint = L.point(rotatedStartX, rotatedStartY);
+        if (moveCount < 12) dbg(`NEW DRAG: rawStart=${sp.x.toFixed(0)},${sp.y.toFixed(0)} → rotStart=${rotatedStartX.toFixed(0)},${rotatedStartY.toFixed(0)}`);
       }
     } else {
-      const r = rotatePointAroundCenter(e.clientX, e.clientY, h);
-      clientX = r.x; clientY = r.y;
-      if (moveCount < 6) {
-        dbg(`MOVE#${moveCount} raw=${e.clientX.toFixed(0)},${e.clientY.toFixed(0)} rot=${clientX.toFixed(0)},${clientY.toFixed(0)}`);
-        dbg(`  start=${draggable._startPoint.x.toFixed(0)},${draggable._startPoint.y.toFixed(0)} delta=${(clientX-draggable._startPoint.x).toFixed(0)},${(clientY-draggable._startPoint.y).toFixed(0)}`);
+      // Continuing drag — keep _startPoint at our frozen rotated value
+      if (rotatedStartX !== null) {
+        draggable._startPoint = L.point(rotatedStartX, rotatedStartY);
       }
     }
+
+    lastRawX = rawX;
+    lastRawY = rawY;
+
+    // Rotate the current pointer position
+    const rot = rotatePointAroundCenter(rawX, rawY, h);
+    if (moveCount < 12) {
+      dbg(`MOVE#${moveCount} raw=${rawX.toFixed(0)},${rawY.toFixed(0)} rot=${rot.x.toFixed(0)},${rot.y.toFixed(0)} delta=${(rot.x-rotatedStartX).toFixed(0)},${(rot.y-rotatedStartY).toFixed(0)}`);
+    }
     moveCount++;
-    origOnMove(makeSynth(e, clientX, clientY));
+
+    origOnMove(makeSynth(e, rot.x, rot.y));
   };
+
+  // Reset on drag end so next drag is detected correctly
+  map.on('dragend', function() {
+    lastRawX = null;
+    lastRawY = null;
+    rotatedStartX = null;
+    rotatedStartY = null;
+  });
 });
 
 
