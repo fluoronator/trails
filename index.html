@@ -307,7 +307,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v3</div>
+  <div id="version-badge">v4</div>
 
   <div id="status-toast" class="hidden">Ready</div>
 
@@ -654,9 +654,7 @@ function startGeolocation() {
 
       // Auto-follow in hiking mode when user hasn't manually panned
       if (S.isHiking && !S.userMovedMap) {
-        // Use setView (bypasses panBy entirely) so the rotation patch
-        // does not interfere with GPS-driven re-centering
-        map.setView(latlng, map.getZoom(), { animate: true, duration: 0.5 });
+        map.panTo(latlng, { animate: true, duration: 0.5 });
       }
 
       const acc = pos.coords.accuracy ? `± ${Math.round(pos.coords.accuracy)}m` : '';
@@ -699,40 +697,118 @@ document.getElementById('locate-btn').addEventListener('click', () => {
   }
 });
 
-// Also honour isTracking in the GPS follow block
-// (patch: re-check on each position update)
-const _origGps = navigator.geolocation.watchPosition;
-
-/* ═══════════════════════════════════════════════════════════════════
-   FIX REVERSED PANNING UNDER MAP ROTATION
-   Leaflet computes drag deltas in screen-pixel space and passes them
-   to map.panBy(). When the wrapper is CSS-rotated those screen deltas
-   don't align with map axes, so panning feels wrong.
-   Fix: override map.panBy to rotate the offset vector by the current
-   heading before Leaflet moves the map. This is version-stable because
-   panBy is a public API that hasn't changed across Leaflet 1.x.
-════════════════════════════════════════════════════════════════════ */
-(function patchPanBy() {
-  // Store the original so GPS-driven panning (panTo) can bypass the rotation fix
-  map._origPanBy = map.panBy.bind(map);
-  map.panBy = function(offset, options) {
-    const h = currentHeading;
-    if (h === 0) { return map._origPanBy(offset, options); }
-    const angle = h * Math.PI / 180;
-    const ox = L.point(offset).x;
-    const oy = L.point(offset).y;
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    const rx = ox * cos - oy * sin;
-    const ry = ox * sin + oy * cos;
-    return map._origPanBy(L.point(rx, ry), options);
-  };
-})();
-
-
 document.querySelectorAll('.layer-btn').forEach(btn =>
   btn.addEventListener('click', () => setTileLayer(btn.dataset.layer))
 );
+
+/* ═══════════════════════════════════════════════════════════════════
+   FIX PANNING UNDER MAP ROTATION
+   Problem: The map wrapper is CSS-rotated, but Leaflet's drag handler
+   computes deltas in raw screen pixels. Those screen pixels don't align
+   with map axes when rotated, so panning goes the wrong direction.
+
+   Fix: Hook into Leaflet's Draggable after map init. Before Leaflet
+   records each pointer position, rotate the pointer coordinates by
+   +heading around the map centre. This makes Leaflet "see" pointer
+   movement as if the map were north-up, so its delta math is correct.
+
+   We rotate the pointer, not the delta, because Leaflet's Draggable
+   stores absolute positions and diffs them internally.
+════════════════════════════════════════════════════════════════════ */
+map.whenReady(function() {
+  const draggable = map.dragging._draggable;
+  if (!draggable) return;
+
+  // Rotate a screen point around the map container centre by `deg` degrees
+  function rotatePointAroundCenter(x, y, deg) {
+    const container = map.getContainer();
+    const cx = container.offsetWidth  / 2;
+    const cy = container.offsetHeight / 2;
+    const rad = deg * Math.PI / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const dx  = x - cx;
+    const dy  = y - cy;
+    return {
+      x: cx + dx * cos - dy * sin,
+      y: cy + dx * sin + dy * cos,
+    };
+  }
+
+  // Wrap _onMove to rotate the pointer position before Leaflet sees it
+  const origOnMove = draggable._onMove.bind(draggable);
+  draggable._onMove = function(e) {
+    const h = currentHeading;
+    if (!h) { origOnMove(e); return; }
+
+    // Build a minimal synthetic event with rotated coordinates.
+    // We rotate by +heading (the inverse of the wrapper's -heading rotation)
+    // so the pointer appears to move in map-north-up space.
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      const t = e.touches[0];
+      const r = rotatePointAroundCenter(t.clientX, t.clientY, h);
+      clientX = r.x; clientY = r.y;
+    } else {
+      const r = rotatePointAroundCenter(e.clientX, e.clientY, h);
+      clientX = r.x; clientY = r.y;
+    }
+
+    // Create a synthetic event proxy with overridden coordinates
+    const synth = new Proxy(e, {
+      get(target, prop) {
+        if (prop === 'clientX') return clientX;
+        if (prop === 'clientY') return clientY;
+        if (prop === 'touches') return [{
+          clientX, clientY,
+          identifier: e.touches ? e.touches[0].identifier : 0,
+          target: e.touches ? e.touches[0].target : e.target,
+        }];
+        if (prop === 'changedTouches') return [{
+          clientX, clientY,
+          identifier: e.changedTouches ? e.changedTouches[0].identifier : 0,
+          target: e.changedTouches ? e.changedTouches[0].target : e.target,
+        }];
+        const val = target[prop];
+        return typeof val === 'function' ? val.bind(target) : val;
+      }
+    });
+    origOnMove(synth);
+  };
+
+  // Also fix _onDown (the initial touch/click that sets the drag start point)
+  const origOnDown = draggable._onDown.bind(draggable);
+  draggable._onDown = function(e) {
+    const h = currentHeading;
+    if (!h) { origOnDown(e); return; }
+
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      const t = e.touches[0];
+      const r = rotatePointAroundCenter(t.clientX, t.clientY, h);
+      clientX = r.x; clientY = r.y;
+    } else {
+      const r = rotatePointAroundCenter(e.clientX, e.clientY, h);
+      clientX = r.x; clientY = r.y;
+    }
+
+    const synth = new Proxy(e, {
+      get(target, prop) {
+        if (prop === 'clientX') return clientX;
+        if (prop === 'clientY') return clientY;
+        if (prop === 'touches') return [{
+          clientX, clientY,
+          identifier: e.touches ? e.touches[0].identifier : 0,
+          target: e.touches ? e.touches[0].target : e.target,
+        }];
+        const val = target[prop];
+        return typeof val === 'function' ? val.bind(target) : val;
+      }
+    });
+    origOnDown(synth);
+  };
+});
+
 
 /* ═══════════════════════════════════════════════════════════════════
    COMPASS / MAP ROTATION
