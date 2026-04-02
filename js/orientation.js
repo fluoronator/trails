@@ -62,6 +62,12 @@ event.webkitCompassHeading >= 0) {
  rawHeading = (360 - event.alpha) % 360;
  } 
 if (rawHeading === undefined) return;
+// DEBUG DISPLAY
+const debugEl = document.getElementById('heading-debug');
+if (debugEl) {
+    debugEl.textContent = `Heading: ${rawHeading.toFixed(1)}°`;
+}
+
  // Instead of assigning rawHeading directly to targetHeading, 
 // advance targetHeading by the shortest delta from its current value. 
 // This keeps targetHeading unbounded and prevents wrap-around jumps. 
