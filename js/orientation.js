@@ -1,32 +1,9 @@
-// orientation.js
+let mapWrapper = document.getElementById("mapWrapper");
 
-let tilePane = null;
-let overlayPane = null;
-
-function getPanes() {
-    if (map) {
-        if (!tilePane) tilePane = map.getPane('tilePane');
-        if (!overlayPane) overlayPane = map.getPane('overlayPane');
-    }
-}
-
-// Rotate both map + overlays
 function rotateMap(deg) {
-    getPanes();
-
-    if (tilePane && overlayPane) {
-
-        const rotation = "rotate(" + (-deg) + "deg)";
-
-        tilePane.style.transformOrigin = "50% 50%";
-        overlayPane.style.transformOrigin = "50% 50%";
-
-        tilePane.style.transform = rotation;
-        overlayPane.style.transform = rotation;
-    }
+    mapWrapper.style.transform = "rotate(" + (-deg) + "deg)";
 }
 
-// Check mode
 function isHikingMode() {
     let modeBox = document.getElementById("modeBox");
     return modeBox && modeBox.innerText.includes("Hiking");
@@ -44,16 +21,15 @@ function handleOrientation(event) {
     }
 
     if (heading !== undefined) {
-
         if (isHikingMode()) {
             rotateMap(heading);
         } else {
-            rotateMap(0); // reset
+            rotateMap(0);
         }
     }
 }
 
-// iPhone permission
+// permission (unchanged)
 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
     document.body.addEventListener("click", function() {
         DeviceOrientationEvent.requestPermission()
