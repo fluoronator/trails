@@ -1,94 +1,672 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <title>Trail Map</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Trail Navigator</title>
 
-    <!-- Prevent caching -->
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #3fb950;
+      --accent2:   #58a6ff;
+      --warn:      #f0883e;
+      --radius:    10px;
+      --panel-h:   56px;
+    }
 
-    <link rel="stylesheet" href="css/style.css" />
+    html, body {
+      height: 100%; width: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    #map {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    /* ── Top bar ── */
+    #top-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--panel-h);
+      background: rgba(13,17,23,0.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 10px;
+      z-index: 1000;
+    }
+
+    #park-name {
+      flex: 1;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #mode-badge {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1.5px solid;
+      transition: all 0.4s ease;
+      white-space: nowrap;
+    }
+    #mode-badge.hiking {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: rgba(63,185,80,0.12);
+    }
+    #mode-badge.browsing {
+      color: var(--accent2);
+      border-color: var(--accent2);
+      background: rgba(88,166,255,0.12);
+    }
+
+    /* ── Bottom bar ── */
+    #bottom-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding: 10px 12px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom));
+      background: rgba(13,17,23,0.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 1000;
+    }
+
+    #layer-group {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .layer-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.04em;
+    }
+    .layer-btn:not(:last-child) { border-right: 1px solid var(--border); }
+    .layer-btn.active { background: var(--accent); color: #000; }
+
+    #locate-btn {
+      flex: 1;
+      background: var(--accent2);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 9px 14px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    #locate-btn:active { opacity: 0.75; }
+    #locate-btn.go-park { background: var(--warn); }
+    #locate-btn.hidden  { display: none; }
+
+    /* ── Status toast ── */
+    #status-toast {
+      position: fixed;
+      top: calc(var(--panel-h) + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(22,27,34,0.93);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 5px 14px;
+      z-index: 1001;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.6s;
+    }
+    #status-toast.hidden { opacity: 0; }
+
+    /* ── User location dot ── */
+    .user-dot-wrap {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: rgba(88,166,255,0.22);
+      display: flex; align-items: center; justify-content: center;
+      animation: gpulse 2.2s infinite;
+    }
+    .user-dot-inner {
+      width: 13px; height: 13px;
+      border-radius: 50%;
+      background: #58a6ff;
+      border: 2.5px solid #fff;
+      box-shadow: 0 0 6px rgba(88,166,255,0.8);
+    }
+    @keyframes gpulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(88,166,255,0.45); }
+      55%      { box-shadow: 0 0 0 9px rgba(88,166,255,0); }
+    }
+
+    /* ── Popup styling ── */
+    .leaflet-popup-content-wrapper {
+      background: var(--surface) !important;
+      color: var(--text) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius) !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.55) !important;
+    }
+    .leaflet-popup-tip { background: var(--surface) !important; }
+    .leaflet-popup-content { margin: 10px 14px !important; }
+    .popup-title { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+    .popup-desc  { font-size: 12px; color: var(--muted); }
+    .leaflet-popup-close-button { color: var(--muted) !important; }
+
+    /* ── Leaflet UI overrides ── */
+    .leaflet-control-attribution {
+      background: rgba(13,17,23,0.75) !important;
+      color: var(--muted) !important;
+      font-size: 10px !important;
+    }
+    .leaflet-control-attribution a { color: var(--accent2) !important; }
+    .leaflet-control-zoom a {
+      background: rgba(22,27,34,0.92) !important;
+      color: var(--text) !important;
+      border-color: var(--border) !important;
+    }
+    .leaflet-control-zoom a:hover { background: var(--surface) !important; }
+
+    /* Trail tooltip */
+    .trail-tip {
+      background: rgba(13,17,23,0.82) !important;
+      border: 1px solid var(--border) !important;
+      color: var(--text) !important;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      border-radius: 6px !important;
+      padding: 3px 8px !important;
+      box-shadow: none !important;
+    }
+    .trail-tip::before { display: none !important; }
+  </style>
 </head>
-
 <body>
 
-<!-- Map rotation wrapper: this whole div gets CSS-rotated for heading -->
-<div id="map-rotate-wrapper">
-    <div id="map"></div>
+<div id="top-bar">
+  <div id="park-name">🥾 Trail Navigator</div>
+  <div id="mode-badge" class="browsing">Browsing</div>
 </div>
 
-<!-- UI overlay — NOT inside the rotation wrapper so controls stay upright -->
-<div id="ui-overlay">
+<div id="map"></div>
 
-    <!-- Mode badge -->
-    <div id="modeBox">
-        <span id="modeIcon">⧖</span>
-        <span id="modeText">Locating…</span>
-    </div>
+<div id="status-toast" class="hidden">Ready</div>
 
-    <!-- Re-center button (appears when user pans away in hiking mode) -->
-    <button id="recenterBtn" class="hidden" onclick="recenterToUser()">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="4"/>
-            <line x1="12" y1="2" x2="12" y2="6"/>
-            <line x1="12" y1="18" x2="12" y2="22"/>
-            <line x1="2" y1="12" x2="6" y2="12"/>
-            <line x1="18" y1="12" x2="22" y2="12"/>
-        </svg>
-        Return to Me
-    </button>
-
-    <!-- Basemap selector -->
-    <div id="basemapSelector">
-        <button class="basemap-btn active" data-layer="standard" onclick="switchBasemap('standard', this)">
-            🗺 Map
-        </button>
-        <button class="basemap-btn" data-layer="topo" onclick="switchBasemap('topo', this)">
-            ⛰ Topo
-        </button>
-        <button class="basemap-btn" data-layer="satellite" onclick="switchBasemap('satellite', this)">
-            🛰 Sat
-        </button>
-    </div>
-
-    <!-- Zoom controls -->
-    <div id="zoomControls">
-        <button onclick="map.zoomIn()" class="zoom-btn">+</button>
-        <button onclick="map.zoomOut()" class="zoom-btn">−</button>
-    </div>
-
+<div id="bottom-bar">
+  <div id="layer-group">
+    <button class="layer-btn active" data-layer="map">Map</button>
+    <button class="layer-btn"        data-layer="topo">Topo</button>
+    <button class="layer-btn"        data-layer="sat">Sat</button>
+  </div>
+  <button id="locate-btn">Find Me</button>
 </div>
 
-<!-- ✅ COMPASS (ADDED — outside rotation wrapper, independent of map) -->
-<div id="compass">
-    <div id="compass-ring">
-        <div id="compass-needle"></div>
-        <div id="compass-center"></div>
-    </div>
-</div>
+<script>
+/* ═══════════════════════════════════════════════════════
+   PARK CONFIGURATION
+   To add more parks later, push another object into this array.
+   geojsonUrl can be a relative path or full URL.
+═══════════════════════════════════════════════════════ */
+const PARKS = [
+  {
+    id:            'trail-park-1',
+    name:          'Trail Park',
+    geojsonUrl:    'trails.geojson',
+    // If the user is within this many metres of the park centre, Hiking mode activates.
+    // Reduce this to a small number (e.g. 100) while testing from your desk,
+    // then set to ~3200 for production.
+    hikingRadius:  50000,        // ← EDIT for testing
+    defaultZoom:   17,
+    defaultCenter: null,         // null = auto-computed from GeoJSON bounds centre
+  }
+];
 
-<!-- Leaflet -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Trail text plugin -->
-<script src="https://unpkg.com/leaflet-textpath@1.2.3/leaflet.textpath.js"></script>
+/* ═══════════════════════════════════════════════════════
+   TILE LAYER DEFINITIONS
+═══════════════════════════════════════════════════════ */
+const TILE_DEFS = {
+  map: {
+    url:  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    opts: {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 22,
+    },
+  },
+  topo: {
+    url:  'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    opts: {
+      attribution: '© <a href="https://opentopomap.org">OpenTopoMap</a>',
+      maxZoom: 17,
+    },
+  },
+  sat: {
+    url:  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    opts: {
+      attribution: '© <a href="https://www.esri.com">Esri</a>',
+      maxZoom: 22,
+    },
+  },
+};
 
-<!-- App JS -->
-<script src="js/map.js"></script>
-<script src="js/trails.js"></script>
-<script src="js/gps.js"></script>
-<script src="js/orientation.js"></script>
+/* ═══════════════════════════════════════════════════════
+   TIMING CONSTANTS  (milliseconds)
+═══════════════════════════════════════════════════════ */
+const RETURN_TO_USER_MS = 4000;  // re-centre on user after panning
+const ZOOM_RETURN_MS    = 5000;  // restore zoom if user zoomed too far out
+const TOAST_DEFAULT_MS  = 2500;
 
+/* ═══════════════════════════════════════════════════════
+   APP STATE
+═══════════════════════════════════════════════════════ */
+const state = {
+  park:         PARKS[0],
+  mode:         'browsing',   // 'browsing' | 'hiking'
+  tracking:     false,        // whether map follows user
+  userLatLng:   null,
+  currentLayer: 'map',
+  parkCenter:   null,         // L.LatLng
+  parkBounds:   null,         // L.LatLngBounds
+  defaultZoom:  PARKS[0].defaultZoom,
+  userPanning:  false,
+  returnTimer:  null,
+  zoomTimer:    null,
+};
+
+/* ═══════════════════════════════════════════════════════
+   MAP INIT
+═══════════════════════════════════════════════════════ */
+const map = L.map('map', {
+  zoomControl: true,
+  attributionControl: true,
+});
+
+// Push zoom control above bottom bar
+const zoomCtrl = document.querySelector('.leaflet-top.leaflet-right') ||
+                 document.querySelector('.leaflet-top.leaflet-left');
+
+let activeTileLayer = null;
+
+function setTileLayer(name) {
+  if (activeTileLayer) map.removeLayer(activeTileLayer);
+  const def = TILE_DEFS[name];
+  activeTileLayer = L.tileLayer(def.url, def.opts).addTo(map);
+  state.currentLayer = name;
+  document.querySelectorAll('.layer-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.layer === name)
+  );
+}
+
+setTileLayer('map');
+
+/* ═══════════════════════════════════════════════════════
+   TOAST HELPER
+═══════════════════════════════════════════════════════ */
+let toastTimer = null;
+
+function showToast(msg, ms = TOAST_DEFAULT_MS) {
+  const el = document.getElementById('status-toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  if (ms > 0) {
+    toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   GEOJSON STYLE HELPERS
+   Reads formatting directly from GeoJSON properties.
+═══════════════════════════════════════════════════════ */
+function styleForLine(props) {
+  return {
+    color:    props.stroke             || '#FF0000',
+    weight:   (props['stroke-width']   ?? 2) + 1,
+    opacity:  props['stroke-opacity']  ?? 0.9,
+    lineCap:  'round',
+    lineJoin: 'round',
+  };
+}
+
+function styleForPolygon(props) {
+  return {
+    color:       props.stroke            || '#00cd00',
+    weight:      props['stroke-width']   ?? 2,
+    opacity:     props['stroke-opacity'] ?? 0.8,
+    fillColor:   props.fill              || props.stroke || '#00cd00',
+    fillOpacity: props['fill-opacity']   ?? 0.15,
+  };
+}
+
+function makePOIIcon(props) {
+  const color = props.stroke || '#e05c2a';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">
+    <path d="M13 0C5.82 0 0 5.82 0 13c0 8.66 13 21 13 21S26 21.66 26 13C26 5.82 20.18 0 13 0z"
+          fill="${color}" opacity="0.92"/>
+    <circle cx="13" cy="13" r="5.5" fill="white" opacity="0.88"/>
+  </svg>`;
+  return L.divIcon({
+    html: svg, className: '',
+    iconSize:    [26, 34],
+    iconAnchor:  [13, 34],
+    popupAnchor: [0, -34],
+  });
+}
+
+function buildPopupHTML(props) {
+  const rawTitle   = (props.title || '').trim();
+  const isTimestamp = /^\d{1,2}:\d{2}:\d{2}/.test(rawTitle);
+  const title      = isTimestamp ? '' : rawTitle;
+  const desc       = (props.description || '').trim();
+  // Remove the auto-generated "Mar 31, 2026 at…" descriptions unless there's no title
+  const showDesc   = desc && !desc.startsWith('Mar ') && !desc.startsWith('Apr ');
+  return `<div class="popup-title">${title || '📍 Point of Interest'}</div>
+          ${showDesc ? `<div class="popup-desc">${desc}</div>` : ''}`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   LOAD & RENDER GEOJSON
+═══════════════════════════════════════════════════════ */
+let geojsonLayer = null;
+
+function loadPark(park) {
+  showToast('Loading trail data…', 0);
+
+  fetch(park.geojsonUrl)
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(data => {
+      if (geojsonLayer) map.removeLayer(geojsonLayer);
+
+      geojsonLayer = L.geoJSON(data, {
+
+        style: feature => {
+          const p = feature.properties || {};
+          const t = feature.geometry.type;
+          if (t === 'LineString' || t === 'MultiLineString') return styleForLine(p);
+          if (t === 'Polygon'    || t === 'MultiPolygon')    return styleForPolygon(p);
+          return {};
+        },
+
+        pointToLayer: (feature, latlng) =>
+          L.marker(latlng, { icon: makePOIIcon(feature.properties || {}) }),
+
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties || {};
+          const t = feature.geometry.type;
+
+          layer.bindPopup(buildPopupHTML(p), { maxWidth: 240 });
+
+          // Hover tooltip for named trail lines
+          const title = (p.title || '').trim();
+          const isTimestamp = /^\d{1,2}:\d{2}:\d{2}/.test(title);
+          if (title && !isTimestamp &&
+              (t === 'LineString' || t === 'MultiLineString')) {
+            layer.bindTooltip(title, {
+              permanent: false,
+              sticky:    true,
+              direction: 'top',
+              className: 'trail-tip',
+            });
+          }
+        },
+
+      }).addTo(map);
+
+      // Compute park centre from bounds
+      state.parkBounds = geojsonLayer.getBounds();
+      if (state.parkBounds.isValid()) {
+        state.parkCenter = park.defaultCenter
+          ? L.latLng(park.defaultCenter[0], park.defaultCenter[1])
+          : state.parkBounds.getCenter();
+
+        map.fitBounds(state.parkBounds, { padding: [50, 50], animate: true });
+        // Capture the zoom Leaflet chose after fitBounds
+        setTimeout(() => {
+          state.defaultZoom = map.getZoom();
+        }, 700);
+      }
+
+      document.getElementById('park-name').textContent = '🥾 ' + park.name;
+      showToast('Trails loaded ✓');
+      startGeolocation();
+    })
+    .catch(err => {
+      console.error('GeoJSON error:', err);
+      showToast('⚠️ Could not load trail data', 0);
+    });
+}
+
+/* ═══════════════════════════════════════════════════════
+   USER LOCATION MARKER
+═══════════════════════════════════════════════════════ */
+let userMarker = null;
+
+function getUserDotIcon() {
+  const wrap = document.createElement('div');
+  wrap.className = 'user-dot-wrap';
+  wrap.innerHTML = '<div class="user-dot-inner"></div>';
+  return L.divIcon({
+    html: wrap, className: '',
+    iconSize:   [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
+function placeOrMoveUser(latlng) {
+  if (!userMarker) {
+    userMarker = L.marker(latlng, {
+      icon:          getUserDotIcon(),
+      zIndexOffset:  1000,
+      interactive:   false,
+    }).addTo(map);
+  } else {
+    userMarker.setLatLng(latlng);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   HAVERSINE DISTANCE  (metres)
+═══════════════════════════════════════════════════════ */
+function metreBetween(lat1, lon1, lat2, lon2) {
+  const R    = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a    = Math.sin(dLat/2)**2 +
+               Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+               Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/* ═══════════════════════════════════════════════════════
+   MODE LOGIC
+═══════════════════════════════════════════════════════ */
+function determineMode(latlng) {
+  if (!state.parkCenter) return 'browsing';
+  const d = metreBetween(
+    latlng.lat, latlng.lng,
+    state.parkCenter.lat, state.parkCenter.lng
+  );
+  return d <= state.park.hikingRadius ? 'hiking' : 'browsing';
+}
+
+function applyMode(newMode) {
+  const wasHiking = state.mode === 'hiking';
+  state.mode = newMode;
+
+  const badge  = document.getElementById('mode-badge');
+  const locBtn = document.getElementById('locate-btn');
+
+  if (newMode === 'hiking') {
+    badge.textContent = '⛰ Hiking';
+    badge.className   = 'hiking';
+    locBtn.classList.add('hidden');
+    if (!state.tracking) enableTracking();
+  } else {
+    badge.textContent = '🗺 Browsing';
+    badge.className   = 'browsing';
+    locBtn.classList.remove('hidden');
+    if (wasHiking) disableTracking();
+  }
+}
+
+function enableTracking() {
+  state.tracking = true;
+  const locBtn = document.getElementById('locate-btn');
+  locBtn.textContent = 'Go to Park';
+  locBtn.classList.add('go-park');
+  if (state.userLatLng) {
+    map.flyTo(state.userLatLng, state.defaultZoom, { duration: 1.2 });
+  }
+}
+
+function disableTracking() {
+  state.tracking = false;
+  const locBtn = document.getElementById('locate-btn');
+  locBtn.textContent = 'Find Me';
+  locBtn.classList.remove('go-park');
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAP INTERACTION — pause tracking while user pans/zooms
+═══════════════════════════════════════════════════════ */
+map.on('dragstart', () => {
+  if (!state.tracking) return;
+  state.userPanning = true;
+  clearTimeout(state.returnTimer);
+  state.returnTimer = setTimeout(() => {
+    state.userPanning = false;
+    if (state.tracking && state.userLatLng) {
+      map.panTo(state.userLatLng, { animate: true, duration: 0.8 });
+    }
+  }, RETURN_TO_USER_MS);
+});
+
+map.on('zoomend', () => {
+  if (!state.tracking) return;
+  if (map.getZoom() < state.defaultZoom - 3) {
+    clearTimeout(state.zoomTimer);
+    state.zoomTimer = setTimeout(() => {
+      if (state.tracking && state.userLatLng) {
+        map.flyTo(state.userLatLng, state.defaultZoom, { duration: 1.2 });
+      }
+    }, ZOOM_RETURN_MS);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   GEOLOCATION
+═══════════════════════════════════════════════════════ */
+function startGeolocation() {
+  if (!navigator.geolocation) {
+    showToast('Geolocation not supported on this device');
+    applyMode('browsing');
+    return;
+  }
+  showToast('Requesting location…', 0);
+
+  navigator.geolocation.watchPosition(
+    pos => {
+      const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+      state.userLatLng = latlng;
+      placeOrMoveUser(latlng);
+
+      const newMode = determineMode(latlng);
+      applyMode(newMode);
+
+      if (state.tracking && !state.userPanning) {
+        map.panTo(latlng, { animate: true, duration: 0.5 });
+      }
+
+      const acc = pos.coords.accuracy
+        ? `± ${Math.round(pos.coords.accuracy)}m`
+        : '';
+      showToast(`📍 Located ${acc}`);
+    },
+    err => {
+      console.warn('Geo error:', err.message);
+      showToast('📍 Location unavailable — Browsing mode');
+      applyMode('browsing');
+    },
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   UI EVENT HANDLERS
+═══════════════════════════════════════════════════════ */
+
+// Layer switcher buttons
+document.querySelectorAll('.layer-btn').forEach(btn => {
+  btn.addEventListener('click', () => setTileLayer(btn.dataset.layer));
+});
+
+// Find Me / Go to Park
+document.getElementById('locate-btn').addEventListener('click', () => {
+  if (state.tracking) {
+    // "Go to Park" pressed — stop tracking, fly to park
+    disableTracking();
+    if (state.parkBounds && state.parkBounds.isValid()) {
+      map.fitBounds(state.parkBounds, { padding: [50, 50], animate: true });
+    }
+  } else {
+    // "Find Me" pressed
+    if (state.userLatLng) {
+      enableTracking();
+    } else {
+      showToast('Waiting for location…');
+    }
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   BOOT
+═══════════════════════════════════════════════════════ */
+loadPark(state.park);
+</script>
 </body>
 </html>
