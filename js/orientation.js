@@ -6,8 +6,14 @@ let currentHeading = null;
 let smoothedHeading = null;
 let lastAppliedRotation = null;
 
+// ➕ NEW: compass-specific smoothing state
+let compassHeading = null;
+
 // Smoothing factor (lower = smoother, slower)
 const HEADING_SMOOTHING = 0.15;
+
+// ➕ NEW: separate smoothing for compass (slightly faster feels better)
+const COMPASS_SMOOTHING = 0.25;
 
 // Minimum change required before updating DOM (degrees)
 const ROTATION_THRESHOLD = 0.5;
@@ -38,6 +44,18 @@ function applyRotation(deg) {
     window.mapRotationDeg = deg;
 }
 
+// ➕ NEW: compass update (completely independent of map)
+function updateCompass(realHeading) {
+    const needle = document.getElementById("compass-needle");
+    if (!needle) return;
+
+    compassHeading = smoothAngle(compassHeading, realHeading, COMPASS_SMOOTHING);
+    compassHeading = normalizeAngle(compassHeading);
+
+    needle.style.transform =
+        `translate(-50%, -100%) rotate(${compassHeading}deg)`;
+}
+
 // ── MAIN ORIENTATION HANDLER ──────────────────────────────────────────────────
 
 function handleOrientation(event) {
@@ -56,6 +74,9 @@ function handleOrientation(event) {
 
     heading = normalizeAngle(heading);
     currentHeading = heading;
+
+    // ➕ ALWAYS update compass (independent of everything)
+    updateCompass(currentHeading);
 
     // ── CONDITIONS TO ALLOW ROTATION ──────────────────────────────────────────
 
