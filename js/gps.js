@@ -33,7 +33,7 @@ function setMode(mode) {
     if (isHikingMode) {
         modeBox.className  = "hiking";
         modeIcon.textContent = "🥾";
-        modeText.textContent = "Hiking Modex";
+        modeText.textContent = "Hiking Mode";
         northArrow.classList.remove("hidden");
     } else {
         modeBox.className  = "browse";

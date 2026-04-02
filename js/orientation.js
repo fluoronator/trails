@@ -18,27 +18,6 @@ let smoothingActive = false;
 const mapWrapper = document.getElementById("map-rotate-wrapper");
 const northArrow  = document.getElementById("northArrow");
 
-(function () {
-    const label = document.getElementById("debugVersionLabel");
-    if (label) {
-        const now = new Date();
-        label.textContent = "JS Loaded: " + now.toLocaleString();
-    }
-
-    console.log("NEW VERSION LOADED", new Date().toISOString());
-})();
-
-let lastRawHeading = null;
-
-function handleOrientation(event) {
-    if (event.webkitCompassHeading !== undefined) {
-        lastRawHeading = event.webkitCompassHeading;
-
-        // existing smoothing logic continues unchanged
-        updateTargetHeading(lastRawHeading);
-    }
-}
-
 // ── SMOOTH ROTATION ────────────────────────────────────────────────────────────
 
 // Returns the shortest signed delta to go from angle `from` to angle `to`,
@@ -54,9 +33,8 @@ function applyRotation(heading) {
     mapWrapper.style.transform = `scale(2) rotate(${-heading}deg)`;
 
     // North arrow counter-rotates to always visually point true north.
-if (lastRawHeading !== null) {
-    northArrow.style.transform = `rotate(${-lastRawHeading}deg)`;
-}
+    const normalizedHeading = ((heading % 360) + 360) % 360;
+    northArrow.style.transform = `rotate(${normalizedHeading}deg)`;
 
     // Expose the current visual rotation so gps.js can correct drag vectors.
     window.mapRotationDeg = ((heading % 360) + 360) % 360;
