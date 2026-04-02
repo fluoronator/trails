@@ -697,7 +697,7 @@ const _origGps = navigator.geolocation.watchPosition;
 (function patchPanBy() {
   const origPanBy = map.panBy.bind(map);
   map.panBy = function(offset, options) {
-    const angle = -(currentHeading * Math.PI / 180);  // rotate back to map-north
+    const angle = (currentHeading * Math.PI / 180);   // rotate screen-delta back to map-north
     if (angle === 0) { return origPanBy(offset, options); }
     const ox = L.point(offset).x;
     const oy = L.point(offset).y;
