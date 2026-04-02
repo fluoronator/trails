@@ -686,8 +686,30 @@ document.getElementById('locate-btn').addEventListener('click', () => {
 const _origGps = navigator.geolocation.watchPosition;
 
 /* ═══════════════════════════════════════════════════════════════════
-   LAYER SWITCHER
+   FIX REVERSED PANNING UNDER MAP ROTATION
+   Leaflet computes drag deltas in screen-pixel space and passes them
+   to map.panBy(). When the wrapper is CSS-rotated those screen deltas
+   don't align with map axes, so panning feels wrong.
+   Fix: override map.panBy to rotate the offset vector by the current
+   heading before Leaflet moves the map. This is version-stable because
+   panBy is a public API that hasn't changed across Leaflet 1.x.
 ════════════════════════════════════════════════════════════════════ */
+(function patchPanBy() {
+  const origPanBy = map.panBy.bind(map);
+  map.panBy = function(offset, options) {
+    const angle = -(currentHeading * Math.PI / 180);  // rotate back to map-north
+    if (angle === 0) { return origPanBy(offset, options); }
+    const ox = L.point(offset).x;
+    const oy = L.point(offset).y;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const rx = ox * cos - oy * sin;
+    const ry = ox * sin + oy * cos;
+    return origPanBy(L.point(rx, ry), options);
+  };
+})();
+
+
 document.querySelectorAll('.layer-btn').forEach(btn =>
   btn.addEventListener('click', () => setTileLayer(btn.dataset.layer))
 );
@@ -710,8 +732,10 @@ function shortestDelta(from, to) {
 
 function applyRotation(heading) {
   mapWrapper.style.transform = `scale(2) rotate(${-heading}deg)`;
-  // Counter-rotate the north arrow SVG so it always points true north
-  northArrow.style.transform = `rotate(${heading}deg)`;
+  // The arrow lives in the un-rotated UI overlay. When the map rotates
+  // -heading degrees, north on screen has shifted -heading degrees from
+  // straight up, so the needle must rotate -heading to point back at north.
+  northArrow.style.transform = `rotate(${-heading}deg)`;
   window.mapRotationDeg = ((heading % 360) + 360) % 360;
 }
 
@@ -765,6 +789,7 @@ if (typeof DeviceOrientationEvent !== 'undefined' &&
     DeviceOrientationEvent.requestPermission()
       .then(r => {
         if (r === 'granted') {
+          // iOS: deviceorientation provides webkitCompassHeading — one listener only
           window.addEventListener('deviceorientation', handleOrientation, true);
         }
       })
@@ -772,8 +797,22 @@ if (typeof DeviceOrientationEvent !== 'undefined' &&
     document.body.removeEventListener('touchend', askPerm);
   }, { passive: true });
 } else {
-  // Android / desktop — start immediately
-  window.addEventListener('deviceorientation', handleOrientation, true);
+  // Android / desktop: prefer 'deviceorientationabsolute' (true north).
+  // Fall back to 'deviceorientation' only if absolute is not supported.
+  // Register ONE listener only — never both — to prevent double-counting.
+  let usingAbsolute = false;
+  window.addEventListener('deviceorientationabsolute', function onAbsolute(e) {
+    if (e.absolute) {
+      usingAbsolute = true;
+      handleOrientation(e);
+    }
+  }, true);
+  // Only register the fallback if the absolute event doesn't fire within 1 s
+  setTimeout(() => {
+    if (!usingAbsolute) {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+  }, 1000);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
