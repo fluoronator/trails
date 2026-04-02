@@ -307,7 +307,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v2</div>
+  <div id="version-badge">v3</div>
 
   <div id="status-toast" class="hidden">Ready</div>
 
@@ -654,7 +654,9 @@ function startGeolocation() {
 
       // Auto-follow in hiking mode when user hasn't manually panned
       if (S.isHiking && !S.userMovedMap) {
-        map.panTo(latlng, { animate: true, duration: 0.5 });
+        // Use setView (bypasses panBy entirely) so the rotation patch
+        // does not interfere with GPS-driven re-centering
+        map.setView(latlng, map.getZoom(), { animate: true, duration: 0.5 });
       }
 
       const acc = pos.coords.accuracy ? `± ${Math.round(pos.coords.accuracy)}m` : '';
@@ -711,21 +713,19 @@ const _origGps = navigator.geolocation.watchPosition;
    panBy is a public API that hasn't changed across Leaflet 1.x.
 ════════════════════════════════════════════════════════════════════ */
 (function patchPanBy() {
-  const origPanBy = map.panBy.bind(map);
+  // Store the original so GPS-driven panning (panTo) can bypass the rotation fix
+  map._origPanBy = map.panBy.bind(map);
   map.panBy = function(offset, options) {
     const h = currentHeading;
-    if (h === 0) { return origPanBy(offset, options); }
-    // The map wrapper is rotated by -heading degrees.
-    // panBy receives a screen-space pixel offset. We must rotate that
-    // offset by -heading to convert it into map-space before Leaflet applies it.
-    const angle = -h * Math.PI / 180;
+    if (h === 0) { return map._origPanBy(offset, options); }
+    const angle = h * Math.PI / 180;
     const ox = L.point(offset).x;
     const oy = L.point(offset).y;
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     const rx = ox * cos - oy * sin;
     const ry = ox * sin + oy * cos;
-    return origPanBy(L.point(rx, ry), options);
+    return map._origPanBy(L.point(rx, ry), options);
   };
 })();
 
