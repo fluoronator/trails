@@ -28,6 +28,17 @@ const northArrow  = document.getElementById("northArrow");
     console.log("NEW VERSION LOADED", new Date().toISOString());
 })();
 
+let lastRawHeading = null;
+
+function handleOrientation(event) {
+    if (event.webkitCompassHeading !== undefined) {
+        lastRawHeading = event.webkitCompassHeading;
+
+        // existing smoothing logic continues unchanged
+        updateTargetHeading(lastRawHeading);
+    }
+}
+
 // ── SMOOTH ROTATION ────────────────────────────────────────────────────────────
 
 // Returns the shortest signed delta to go from angle `from` to angle `to`,
