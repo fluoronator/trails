@@ -34,60 +34,43 @@ function applyRotation(heading) {
 
     // North arrow counter-rotates to always visually point true north.
     northArrow.style.transform = `rotate(${heading}deg)`;
-    //northArrow.style.transform = `rotate(90deg)`;
+    //northArrow.style.transform = `rotate({rawHeading}deg)`;
 
 
     // Expose the current visual rotation so gps.js can correct drag vectors.
     window.mapRotationDeg = ((heading % 360) + 360) % 360;
 }
 
-// ── HEADING HANDLER ────────────────────────────────────────────────────────────
-
+// ── HEADING HANDLER ──────────────────────────────────────────────────────────── 
 function handleOrientation(event) {
-    if (!window.isHikingMode) {
-        if (mapWrapper) {
-            mapWrapper.style.transform = 'scale(2) rotate(0deg)';
-        }
-        window.mapRotationDeg = 0;
-        return;
-    }
+ if (!window.isHikingMode) {
+ if (mapWrapper) {
+ mapWrapper.style.transform = 'scale(2) rotate(0deg)';
+ }
+ window.mapRotationDeg = 0;
+ return; 
+} 
 
-    let rawHeading;
-
-    // iOS: webkitCompassHeading is clockwise degrees from magnetic north
-    if (typeof event.webkitCompassHeading === 'number' &&
-        event.webkitCompassHeading >= 0) {
-
-        let heading = event.webkitCompassHeading;
-
-        // Adjust for device screen orientation (important for iPhone)
-        const orientation = window.orientation || 0;
-
-        if (orientation === 90) {
-            heading += 90;
-        } else if (orientation === -90) {
-            heading -= 90;
-        } else if (orientation === 180) {
-            heading += 180;
-        }
-
-        rawHeading = (heading + 360) % 360;
-    }
-    // Android/standard
-    else if (event.alpha !== null && event.alpha !== undefined) {
-        rawHeading = event.alpha; // corrected earlier
-    }
-
-    if (rawHeading === undefined) return;
-
-    // Smooth transition (unchanged)
-    const delta = shortestAngleDelta(targetHeading, rawHeading);
-    targetHeading += delta;
-
-    if (!smoothingActive) {
-        smoothingActive = true;
-        smoothRotation();
-    }
+let rawHeading; 
+// iOS: webkitCompassHeading is clockwise degrees from magnetic north — ideal.
+ if (typeof event.webkitCompassHeading === 'number' && 
+event.webkitCompassHeading >= 0) {
+ rawHeading = event.webkitCompassHeading;
+ } 
+// Android/standard: alpha is CCW degrees from north. Convert to CW.
+ else if (event.alpha !== null && event.alpha !== undefined) {
+ rawHeading = (360 - event.alpha) % 360;
+ } 
+if (rawHeading === undefined) return;
+ // Instead of assigning rawHeading directly to targetHeading, 
+// advance targetHeading by the shortest delta from its current value. 
+// This keeps targetHeading unbounded and prevents wrap-around jumps. 
+const delta = shortestAngleDelta(targetHeading, rawHeading); 
+targetHeading += delta;
+ if (!smoothingActive) {
+ smoothingActive = true;
+ smoothRotation(); 
+} 
 }
 
 function smoothRotation() {
