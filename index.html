@@ -307,7 +307,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v4</div>
+  <div id="version-badge">v5</div>
 
   <div id="status-toast" class="hidden">Ready</div>
 
@@ -735,27 +735,8 @@ map.whenReady(function() {
     };
   }
 
-  // Wrap _onMove to rotate the pointer position before Leaflet sees it
-  const origOnMove = draggable._onMove.bind(draggable);
-  draggable._onMove = function(e) {
-    const h = currentHeading;
-    if (!h) { origOnMove(e); return; }
-
-    // Build a minimal synthetic event with rotated coordinates.
-    // We rotate by +heading (the inverse of the wrapper's -heading rotation)
-    // so the pointer appears to move in map-north-up space.
-    let clientX, clientY;
-    if (e.touches && e.touches.length > 0) {
-      const t = e.touches[0];
-      const r = rotatePointAroundCenter(t.clientX, t.clientY, h);
-      clientX = r.x; clientY = r.y;
-    } else {
-      const r = rotatePointAroundCenter(e.clientX, e.clientY, h);
-      clientX = r.x; clientY = r.y;
-    }
-
-    // Create a synthetic event proxy with overridden coordinates
-    const synth = new Proxy(e, {
+  function makeSynth(e, clientX, clientY) {
+    return new Proxy(e, {
       get(target, prop) {
         if (prop === 'clientX') return clientX;
         if (prop === 'clientY') return clientY;
@@ -773,14 +754,33 @@ map.whenReady(function() {
         return typeof val === 'function' ? val.bind(target) : val;
       }
     });
-    origOnMove(synth);
-  };
+  }
 
-  // Also fix _onDown (the initial touch/click that sets the drag start point)
+  // Let _onDown run UNmodified so Leaflet stores the real unrotated startPoint.
+  // Then immediately rotate that stored _startPoint into the same rotated space
+  // that _onMove will use. This way the first delta is zero (not a big jump).
   const origOnDown = draggable._onDown.bind(draggable);
   draggable._onDown = function(e) {
+    origOnDown(e);  // let Leaflet store _startPoint normally
     const h = currentHeading;
-    if (!h) { origOnDown(e); return; }
+    if (!h) return;
+    // Rotate the stored _startPoint to match the rotated coord space
+    if (draggable._startPoint) {
+      const r = rotatePointAroundCenter(
+        draggable._startPoint.x,
+        draggable._startPoint.y,
+        h
+      );
+      draggable._startPoint = L.point(r.x, r.y);
+    }
+  };
+
+  // Wrap _onMove: rotate the incoming pointer position by +heading
+  // so Leaflet's delta math (newPoint - startPoint) stays in rotated space
+  const origOnMove = draggable._onMove.bind(draggable);
+  draggable._onMove = function(e) {
+    const h = currentHeading;
+    if (!h) { origOnMove(e); return; }
 
     let clientX, clientY;
     if (e.touches && e.touches.length > 0) {
@@ -791,21 +791,7 @@ map.whenReady(function() {
       const r = rotatePointAroundCenter(e.clientX, e.clientY, h);
       clientX = r.x; clientY = r.y;
     }
-
-    const synth = new Proxy(e, {
-      get(target, prop) {
-        if (prop === 'clientX') return clientX;
-        if (prop === 'clientY') return clientY;
-        if (prop === 'touches') return [{
-          clientX, clientY,
-          identifier: e.touches ? e.touches[0].identifier : 0,
-          target: e.touches ? e.touches[0].target : e.target,
-        }];
-        const val = target[prop];
-        return typeof val === 'function' ? val.bind(target) : val;
-      }
-    });
-    origOnDown(synth);
+    origOnMove(makeSynth(e, clientX, clientY));
   };
 });
 
