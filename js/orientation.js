@@ -27,10 +27,10 @@ function shortestAngleDelta(from, to) {
 }
 
 function applyRotation(heading) {
-    // scale(1.5) keeps corners covered at all angles; rotate() spins the map.
-    // The wrapper is 100vw×100vh in layout space so it never inflates vw/vh
-    // calculations for the UI overlay — scale only affects visual rendering.
-    mapWrapper.style.transform = `scale(1.5) rotate(${-heading}deg)`;
+    // scale(2) keeps corners covered at all angles on any phone aspect ratio.
+    // rotate() spins the map. The wrapper is 100vw×100vh in layout space so
+    // it never inflates vw/vh calculations for the UI overlay.
+    mapWrapper.style.transform = `scale(2) rotate(${-heading}deg)`;
 
     // North arrow counter-rotates to always visually point true north.
     northArrow.style.transform = `rotate(${heading}deg)`;
@@ -44,7 +44,7 @@ function applyRotation(heading) {
 function handleOrientation(event) {
     if (!window.isHikingMode) {
         if (mapWrapper) {
-            mapWrapper.style.transform = 'scale(1.5) rotate(0deg)';
+            mapWrapper.style.transform = 'scale(2) rotate(0deg)';
         }
         window.mapRotationDeg = 0;
         return;

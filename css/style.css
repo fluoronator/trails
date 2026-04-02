@@ -19,11 +19,12 @@ body {
 /* ── MAP ROTATION WRAPPER ─────────────────────
    Stays exactly 100vw × 100vh in layout space so it never
    affects how the browser computes vw/vh for other elements.
-   We use scale(1.5) to visually expand beyond the viewport
-   so corners stay covered at any rotation angle (sqrt(2)≈1.415).
+   scale(2) visually doubles the size so corners are covered
+   at any rotation on any phone aspect ratio (sqrt(2)≈1.415,
+   but tall phones need up to ~2.4× — scale(2) is safe for
+   all realistic aspect ratios up to ~16:9).
    orientation.js updates the full transform string:
-     scale(1.5) rotate(Xdeg)
-   keeping scale constant and only changing the angle. */
+     scale(2) rotate(Xdeg) */
 #map-rotate-wrapper {
     position: fixed;
     top: 0;
@@ -31,7 +32,7 @@ body {
     width: 100vw;
     height: 100vh;
     transform-origin: center center;
-    transform: scale(1.5);
+    transform: scale(2);
     will-change: transform;
     z-index: 1;
 }

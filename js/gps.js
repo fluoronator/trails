@@ -42,7 +42,7 @@ function setMode(mode) {
         northArrow.classList.add("hidden");
         // In browse mode, reset rotation
         const wrapper = document.getElementById("map-rotate-wrapper");
-        if (wrapper) wrapper.style.transform = 'scale(1.5) rotate(0deg)';
+        if (wrapper) wrapper.style.transform = 'scale(2) rotate(0deg)';
         window.mapRotationDeg = 0;
     }
 }
@@ -163,131 +163,46 @@ if (navigator.geolocation) {
 
 // ── ROTATION-AWARE PANNING ────────────────────────────────────────────────────
 //
-// Problem: Leaflet's drag handler operates in screen-pixel space and has no
-// knowledge that the map tile layer is CSS-rotated. A finger moving "up" always
-// tells Leaflet to pan north, even when north is to the left on the rotated map.
+// Leaflet's Draggable computes a pixel offset (_newPos) for the map pane and
+// applies it via L.DomUtil.setPosition. It has no knowledge of our CSS rotation.
+// When the map is rotated, its "right" is our "up" (or whatever), so the pane
+// moves in the wrong screen direction even though the geographic pan is correct.
 //
-// Fix: disable Leaflet's built-in drag entirely and replace it with our own
-// pointer-event handler that:
-//   1. Tracks the raw screen-pixel delta between each pointer move.
-//   2. Rotates that delta vector by the current map heading.
-//   3. Calls map.panBy() with the corrected delta.
-//
-// This is more reliable than monkey-patching Leaflet internals because we
-// control the full delta computation — there's no internal state to fight.
+// The fix: after Leaflet computes _newPos (which is in map-pane pixel space,
+// always north-up), we intercept L.DomUtil.setPosition and rotate the offset
+// vector back into screen space before actually moving the pane element.
+// This keeps Leaflet's drag state, inertia, and event system fully intact.
 
-(function installRotationAwareDrag() {
+(function patchDomUtilSetPosition() {
 
-    // Disable Leaflet's own drag so they don't conflict
-    map.dragging.disable();
+    const _origSetPosition = L.DomUtil.setPosition.bind(L.DomUtil);
 
-    const container = map.getContainer();
-
-    let isDragging  = false;
-    let lastX       = 0;
-    let lastY       = 0;
-
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    function getPoint(e) {
-        // Normalise mouse and touch events to a single {x, y}
-        if (e.touches && e.touches.length > 0) {
-            return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        }
-        return { x: e.clientX, y: e.clientY };
-    }
-
-    function rotateDelta(dx, dy, deg) {
-        // The map is visually rotated by -deg (we applied rotate(-heading)).
-        // To make the finger movement feel correct in the rotated frame we
-        // rotate the screen-space delta by +deg back to map-space.
-        const rad = (deg * Math.PI) / 180;
-        const cos = Math.cos(rad);
-        const sin = Math.sin(rad);
-        return {
-            dx:  dx * cos + dy * sin,
-            dy: -dx * sin + dy * cos
-        };
-    }
-
-    // ── pointer down ─────────────────────────────────────────────────────────
-
-    function onStart(e) {
-        // Ignore multi-touch (pinch zoom) — only handle single finger/mouse
-        if (e.touches && e.touches.length !== 1) return;
-
-        isDragging = true;
-        const pt = getPoint(e);
-        lastX = pt.x;
-        lastY = pt.y;
-
-        // Notify the rest of the app that the user started moving the map
-        userMovedMap = true;
-        if (isHikingMode) showRecenterBtn(true);
-        resetRecenterTimer();
-
-        map.fire('dragstart');
-    }
-
-    // ── pointer move ─────────────────────────────────────────────────────────
-
-    function onMove(e) {
-        if (!isDragging) return;
-        if (e.touches && e.touches.length !== 1) {
-            // Multi-touch started mid-drag — abort our drag
-            isDragging = false;
-            return;
-        }
-
-        e.preventDefault();   // prevent page scroll on touch
-
-        const pt  = getPoint(e);
-        const sdx = pt.x - lastX;   // raw screen delta
-        const sdy = pt.y - lastY;
-        lastX = pt.x;
-        lastY = pt.y;
-
+    L.DomUtil.setPosition = function(el, point) {
         const deg = window.mapRotationDeg || 0;
 
-        let mdx, mdy;
-        if (deg === 0) {
-            // No rotation — pass straight through (avoids float noise)
-            mdx = sdx;
-            mdy = sdy;
-        } else {
-            const rotated = rotateDelta(sdx, sdy, deg);
-            mdx = rotated.dx;
-            mdy = rotated.dy;
+        // Only intercept calls that move the map pane, and only when rotated.
+        // The map pane is identified by having the 'leaflet-map-pane' class.
+        if (deg === 0 || !el.classList || !el.classList.contains('leaflet-map-pane')) {
+            return _origSetPosition(el, point);
         }
 
-        // panBy expects [x, y] where positive x = pan right, positive y = pan down
-        // We negate because dragging right should move the map left (pan left = content moves right)
-        map.panBy([-mdx, -mdy], { animate: false });
+        // point is the new top-left offset of the map pane in container pixels.
+        // We need to rotate this offset vector so the visual pan direction
+        // matches the finger's screen direction.
+        //
+        // The map pane moves opposite to the pan: panning right moves the pane left.
+        // Our wrapper rotates by -deg, so pane offsets are in a rotated coordinate
+        // frame. To make pane movement feel aligned with finger direction, we rotate
+        // the offset by -deg (same direction as the wrapper rotation).
+        const rad = (-deg * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
 
-        resetRecenterTimer();
-    }
+        const rx = point.x * cos - point.y * sin;
+        const ry = point.x * sin + point.y * cos;
 
-    // ── pointer up ───────────────────────────────────────────────────────────
-
-    function onEnd(e) {
-        if (!isDragging) return;
-        isDragging = false;
-        map.fire('dragend');
-        resetRecenterTimer();
-    }
-
-    // ── attach events (touch + mouse) ─────────────────────────────────────────
-
-    // Touch
-    container.addEventListener('touchstart',  onStart, { passive: true  });
-    container.addEventListener('touchmove',   onMove,  { passive: false }); // must be non-passive to preventDefault
-    container.addEventListener('touchend',    onEnd,   { passive: true  });
-    container.addEventListener('touchcancel', onEnd,   { passive: true  });
-
-    // Mouse (for desktop testing)
-    container.addEventListener('mousedown', onStart);
-    window   .addEventListener('mousemove', onMove);
-    window   .addEventListener('mouseup',   onEnd);
+        return _origSetPosition(el, L.point(rx, ry));
+    };
 
 })();
 
