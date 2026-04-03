@@ -352,7 +352,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v29</div>
+  <div id="version-badge">v30</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -777,20 +777,21 @@ function setMode(mode) {
 /* ═══════════════════════════════════════════════════════════════════
    OFFSET PAN — keeps user dot at 3/4 down the screen in hiking mode
    so the hiker sees more trail ahead than behind.
+   Uses Leaflet's built-in padding option — single atomic operation,
+   no secondary panBy that fights with the drag rotation patch.
 ════════════════════════════════════════════════════════════════════ */
 function panToUserWithOffset(latlng) {
-  // Place the user at 75% down the screen (25% from bottom)
-  // by panning to their position then shifting up by 25% of screen height
-  const container = map.getContainer();
-  const offsetY = container.offsetHeight * 0.25;  // shift map up = user moves down
-  map.panTo(latlng, { animate: true, duration: 0.5 });
-  // After the pan settles, apply vertical offset
-  // Use setTimeout 0 to let panTo register first
-  setTimeout(() => {
-    map._origPanBy
-      ? map._origPanBy(L.point(0, -offsetY), { animate: false })
-      : map.panBy(L.point(0, -offsetY), { animate: false });
-  }, 0);
+  const h = map.getContainer().offsetHeight;
+  // Target: user dot at 75% down = shift view so latlng appears 75% down.
+  // paddingTopLeft pushes the effective centre up by offsetY pixels.
+  // paddingBottomRight balances horizontally.
+  const offsetY = Math.round(h * 0.25);  // 25% up from centre = 75% down screen
+  map.panTo(latlng, {
+    animate:          true,
+    duration:         0.5,
+    paddingTopLeft:   [0, 0],
+    paddingBottomRight: [0, offsetY * 2],
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -802,13 +803,8 @@ function showRecenterBtn(show) {
 
 function recenterToUser() {
   if (!S.userLatLng) return;
-  map.setView(S.userLatLng, Math.max(map.getZoom(), S.hikingZoom));
-  setTimeout(() => {
-    const offsetY = map.getContainer().offsetHeight * 0.25;
-    map._origPanBy
-      ? map._origPanBy(L.point(0, -offsetY), { animate: false })
-      : map.panBy(L.point(0, -offsetY), { animate: false });
-  }, 300);
+  if (map.getZoom() < S.hikingZoom) map.setZoom(S.hikingZoom);
+  panToUserWithOffset(S.userLatLng);
   S.userMovedMap = false;
   showRecenterBtn(false);
   clearTimeout(S.recenterTimer);
@@ -882,7 +878,8 @@ function startGeolocation() {
         const wasHiking  = S.isHiking;
         setMode(shouldHike ? 'hiking' : 'browsing');
         if (shouldHike && !wasHiking && !S.hasCentered) {
-          map.setView(latlng, S.hikingZoom);
+          map.setZoom(S.hikingZoom);
+          panToUserWithOffset(latlng);
           S.hasCentered = true;
         }
       }
@@ -924,7 +921,8 @@ document.getElementById('locate-btn').addEventListener('click', () => {
       S.userMovedMap = false;
       btn.textContent = 'Go to Park';
       btn.classList.add('go-park');
-      map.setView(S.userLatLng, S.hikingZoom);
+      if (map.getZoom() < S.hikingZoom) map.setZoom(S.hikingZoom);
+      panToUserWithOffset(S.userLatLng);
       // While isTracking in browse mode, pan on each GPS update
     } else {
       showToast('Waiting for location…');
