@@ -39,7 +39,7 @@
       top: 0; left: 0;
       width: 100vw; height: 100vh;
       transform-origin: 50% 75%;
-      transform: scale(4);
+      transform: scale(1);
       will-change: transform;
       z-index: 1;
     }
@@ -369,7 +369,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v42-debug</div>
+  <div id="version-badge">v43-debug</div>
   <div id="zoom-badge"></div>
   <div id="debug-panel"></div>
 
@@ -799,7 +799,7 @@ function setMode(mode) {
     arrow.classList.add('hidden');
     showCompassBtn(false);
     clearTimeout(compassCheckTimer);
-    wrapper.style.transform = 'scale(4) rotate(0deg)';
+    wrapper.style.transform = 'scale(1) rotate(0deg)';
     window.mapRotationDeg   = 0;
     currentHeading = 0;
     targetHeading  = 0;
@@ -1110,12 +1110,13 @@ function shortestDelta(from, to) {
 }
 
 function applyRotation(heading) {
-  mapWrapper.style.transform = `scale(4) rotate(${-heading}deg)`;
-  // The arrow lives in the un-rotated UI overlay. When the map rotates
-  // -heading degrees, north on screen has shifted -heading degrees from
-  // straight up, so the needle must rotate -heading to point back at north.
+  // Only scale up when actually rotating — scale(1) when north-up to avoid
+  // stretching the map display. Scale(4) covers corners on any phone during rotation.
+  const normHeading = ((heading % 360) + 360) % 360;
+  const scale = (normHeading > 1 && normHeading < 359) ? 4 : 1;
+  mapWrapper.style.transform = `scale(${scale}) rotate(${-heading}deg)`;
   northArrow.style.transform = `rotate(${-heading}deg)`;
-  window.mapRotationDeg = ((heading % 360) + 360) % 360;
+  window.mapRotationDeg = normHeading;
 }
 
 function smoothRotation() {
