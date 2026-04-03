@@ -369,7 +369,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v33-debug</div>
+  <div id="version-badge">v34-debug</div>
   <div id="zoom-badge"></div>
   <div id="debug-panel"></div>
 
@@ -863,8 +863,8 @@ map.on('zoomstart', e => {
 ════════════════════════════════════════════════════════════════════ */
 
 // Minimum movement thresholds to filter GPS jitter
-const MIN_MOVE_METRES_DOT    = 1;   // below this, don't even move the dot
-const MIN_MOVE_METRES_FOLLOW = 3;   // below this, don't pan the map
+const MIN_MOVE_METRES_DOT    = 0.5;  // below this, don't move the dot
+const MIN_MOVE_METRES_FOLLOW = 0.5;  // below this, don't pan the map
 
 function startGeolocation() {
   if (!navigator.geolocation) {
