@@ -216,24 +216,29 @@
       pointer-events: none;
     }
 
-    /* ── IOS COMPASS TAP OVERLAY ── */
-    #tap-overlay {
+    #compass-btn-wrap {
       position: absolute;
-      inset: 0;
-      background: rgba(13,17,23,0.85);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 3000;
-      cursor: pointer;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1001;
     }
-    #tap-overlay.hidden { display: none; }
-    #tap-overlay-inner { text-align: center; padding: 32px; }
-    #tap-overlay-icon  { font-size: 56px; margin-bottom: 16px; }
-    #tap-overlay-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
-    #tap-overlay-sub   { font-size: 14px; color: var(--muted); }
+    #compass-btn-wrap.hidden { display: none; }
+    #compass-perm-btn {
+      background: rgba(13,17,23,0.92);
+      color: var(--green);
+      border: 1.5px solid var(--green);
+      border-radius: 20px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      white-space: nowrap;
+    }
+    #compass-perm-btn:active { opacity: 0.75; }
 
     /* ── ZOOM BADGE ── */
     #zoom-badge {
@@ -370,7 +375,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v58</div>
+  <div id="version-badge">v57</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -398,13 +403,9 @@
     Return to Me
   </button>
 
-  <!-- iOS compass permission overlay — shown on first load, dismissed on tap -->
-  <div id="tap-overlay" class="hidden">
-    <div id="tap-overlay-inner">
-      <div id="tap-overlay-icon">🧭</div>
-      <div id="tap-overlay-title">Tap to Enable Compass</div>
-      <div id="tap-overlay-sub">Required for map rotation</div>
-    </div>
+  <!-- Compass permission button — shown when orientation permission not yet granted -->
+  <div id="compass-btn-wrap" class="hidden">
+    <button id="compass-perm-btn">🧭 Enable Compass</button>
   </div>
 
   <div id="bottom-bar">
@@ -1191,69 +1192,99 @@ let orientationPermissionGranted = false;
 let orientationEventCount = 0;
 let compassCheckTimer = null;
 
-// showCompassBtn kept as no-op for safety (referenced in checkCompassOnHikingStart)
-function showCompassBtn(show) { /* replaced by tap overlay */ }
+function showCompassBtn(show) {
+  document.getElementById('compass-btn-wrap').classList.toggle('hidden', !show);
+}
 
 function startOrientationListening() {
   if (typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // iOS — must call requestPermission from within a user gesture handler
-    DeviceOrientationEvent.requestPermission()
-      .then(response => {
-        if (response === 'granted') {
-          window.addEventListener('deviceorientation', handleOrientation, true);
-          orientationPermissionGranted = true;
-          showToast('Compass enabled ✓');
-        } else {
-          showToast('Compass permission denied — rotation unavailable');
-        }
-      })
-      .catch(err => {
-        console.warn('Compass permission error:', err);
-      });
+    // iOS — uses deviceorientation which provides webkitCompassHeading (true north)
+    window.addEventListener('deviceorientation', handleOrientation, true);
   } else {
-    // Android / desktop — no permission needed
+    // Android — prefer deviceorientationabsolute (true north referenced).
+    // Fall back to deviceorientation only if absolute never fires.
     let gotAbsolute = false;
+
     window.addEventListener('deviceorientationabsolute', function(e) {
       gotAbsolute = true;
       handleOrientation(e);
     }, true);
+
     setTimeout(() => {
       if (!gotAbsolute) {
+        // Device doesn't support absolute — fall back, north may be approximate
         window.addEventListener('deviceorientation', handleOrientation, true);
       }
-    }, 500);
-    orientationPermissionGranted = true;
+    }, 500);  // 500ms is enough — absolute fires immediately if supported
+  }
+
+  orientationPermissionGranted = true;
+  showCompassBtn(false);
+
+  // After 3 seconds check if we're actually receiving events
+  clearTimeout(compassCheckTimer);
+  compassCheckTimer = setTimeout(() => {
+    if (orientationEventCount === 0 && S.isHiking) {
+      showCompassBtn(true);
+    }
+  }, 3000);
+}
+
+function requestCompassPermission() {
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+
+    DeviceOrientationEvent.requestPermission()
+      .then(response => {
+        if (response === 'granted') {
+          startOrientationListening();
+          showToast('Compass enabled ✓');
+        } else {
+          showToast('Compass permission denied');
+          showCompassBtn(true);
+        }
+      })
+      .catch(err => {
+        console.warn('Compass permission error:', err);
+        showToast('Compass unavailable');
+      });
+  } else {
+    // Android / desktop — no permission needed
+    startOrientationListening();
   }
 }
 
-// iOS: show tap overlay on first load so we have a guaranteed user gesture
-// for the requestPermission call. Non-iOS: start immediately, no overlay needed.
-if (typeof DeviceOrientationEvent !== 'undefined' &&
-    typeof DeviceOrientationEvent.requestPermission === 'function') {
-  // iOS — show the tap overlay
-  const overlay = document.getElementById('tap-overlay');
-  overlay.classList.remove('hidden');
-  overlay.addEventListener('click', function onTap() {
-    overlay.classList.add('hidden');
-    overlay.removeEventListener('click', onTap);
-    startOrientationListening();
-  }, { once: true });
-} else {
-  // Android / desktop — start immediately
+// Compass button tap
+document.getElementById('compass-perm-btn').addEventListener('click', requestCompassPermission);
+
+// Android/desktop: start immediately (no permission needed)
+// iOS: wait for button tap — requestPermission requires a direct user gesture
+if (typeof DeviceOrientationEvent === 'undefined' ||
+    typeof DeviceOrientationEvent.requestPermission !== 'function') {
   startOrientationListening();
 }
 
 // Called from setMode() when hiking mode activates
 function checkCompassOnHikingStart() {
+  // Reset smoothing so the RAF loop restarts cleanly on next orientation event
   smoothingActive = false;
-  // If iOS and permission not yet granted (user hasn't tapped overlay),
-  // show the overlay again as a reminder
+
   if (typeof DeviceOrientationEvent !== 'undefined' &&
-      typeof DeviceOrientationEvent.requestPermission === 'function' &&
-      !orientationPermissionGranted) {
-    document.getElementById('tap-overlay').classList.remove('hidden');
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS — show button if permission not yet granted
+    if (!orientationPermissionGranted) {
+      showCompassBtn(true);
+    }
   }
+
+  // Check after 3s whether events are actually arriving
+  clearTimeout(compassCheckTimer);
+  compassCheckTimer = setTimeout(() => {
+    if (orientationEventCount === 0 && S.isHiking) {
+      showCompassBtn(true);
+    }
+  }, 3000);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
