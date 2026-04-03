@@ -375,7 +375,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v52</div>
+  <div id="version-badge">v53</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -1116,54 +1116,7 @@ map.whenReady(function() {
 });
 
 /* ═══════════════════════════════════════════════════════════════════
-   FIX PINCH-ZOOM UNDER MAP ROTATION
-   Leaflet's TouchZoom handler reads e.touches to find the pinch centre.
-   We patch its _onTouchStart and _onTouchMove methods to rotate the
-   touch coordinates before Leaflet uses them.
-════════════════════════════════════════════════════════════════════ */
-map.whenReady(function() {
-  const tz = map.touchZoom;
-  if (!tz) return;
-
-  function rotateTouch(clientX, clientY) {
-    const h = currentHeading;
-    if (!h) return { clientX, clientY };
-    const cx  = window.innerWidth  * 0.5;
-    const cy  = window.innerHeight * 0.75;
-    const rad = h * Math.PI / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    const dx  = clientX - cx;
-    const dy  = clientY - cy;
-    return {
-      clientX: cx + dx * cos - dy * sin,
-      clientY: cy + dx * sin + dy * cos,
-    };
-  }
-
-  function makeTouchSynth(e) {
-    if (!currentHeading || e.touches.length < 2) return e;
-    const t0 = e.touches[0], t1 = e.touches[1];
-    const r0 = rotateTouch(t0.clientX, t0.clientY);
-    const r1 = rotateTouch(t1.clientX, t1.clientY);
-    const fakeTouches = [
-      { clientX: r0.clientX, clientY: r0.clientY, identifier: t0.identifier, target: t0.target },
-      { clientX: r1.clientX, clientY: r1.clientY, identifier: t1.identifier, target: t1.target },
-    ];
-    return new Proxy(e, {
-      get(target, prop) {
-        if (prop === 'touches') return fakeTouches;
-        const val = target[prop];
-        return typeof val === 'function' ? val.bind(target) : val;
-      }
-    });
-  }
-
-  const origStart = tz._onTouchStart.bind(tz);
-  const origMove  = tz._onTouchMove.bind(tz);
-  tz._onTouchStart = e => origStart(makeTouchSynth(e));
-  tz._onTouchMove  = e => origMove(makeTouchSynth(e));
-});
+   COMPASS / MAP ROTATION
    Rotates #map-rotate-wrapper. UI overlay never rotates.
    Uses UNBOUNDED heading float to prevent wrap-around spin.
 ════════════════════════════════════════════════════════════════════ */
