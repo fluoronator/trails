@@ -36,16 +36,26 @@
 
     #map-rotate-wrapper {
       position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      transform-origin: 50% 75%;
-      transform: scale(1);
+      /* Size the container large enough that its corners always cover
+         the screen at any rotation angle, for any phone aspect ratio.
+         We centre it on the 75% pivot point using negative margins.
+         400vmax is generous enough for any current or future device —
+         tiles outside the visible area are cached and never re-fetched. */
+      width: 400vmax;
+      height: 400vmax;
+      top: 75vh;
+      left: 50vw;
+      margin-top: -200vmax;
+      margin-left: -200vmax;
+      transform-origin: 50% 50%;
+      transform: rotate(0deg);
       will-change: transform;
       z-index: 1;
     }
 
     #map {
-      width: 100%; height: 100%;
+      width: 100%;
+      height: 100%;
     }
 
     #ui-overlay {
@@ -369,7 +379,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v43-debug</div>
+  <div id="version-badge">v45-debug</div>
   <div id="zoom-badge"></div>
   <div id="debug-panel"></div>
 
@@ -799,7 +809,7 @@ function setMode(mode) {
     arrow.classList.add('hidden');
     showCompassBtn(false);
     clearTimeout(compassCheckTimer);
-    wrapper.style.transform = 'scale(1) rotate(0deg)';
+    wrapper.style.transform = 'rotate(0deg)';
     window.mapRotationDeg   = 0;
     currentHeading = 0;
     targetHeading  = 0;
@@ -813,18 +823,16 @@ function setMode(mode) {
    using a plain panTo. No secondary panBy, no padding options.
 ════════════════════════════════════════════════════════════════════ */
 function panToUser(latlng, animate) {
-  // Keep user dot at 75% down the screen, matching the rotation transform-origin.
-  // Find what latlng needs to be at screen centre so that our target
-  // latlng appears at 75% down.
-  const container = map.getContainer();
-  const w = container.offsetWidth;
-  const h = container.offsetHeight;
-  // Pixel position of user on screen vs where we want them (75% down)
+  // Use window dimensions (not container) since container is now larger than screen.
+  // We want the user dot at 75% down the screen.
+  const W = window.innerWidth;
+  const H = window.innerHeight;
   const targetPx  = map.latLngToContainerPoint(latlng);
-  const desiredPx = L.point(w * 0.5, h * 0.75);
+  const desiredPx = L.point(W * 0.5, H * 0.75);
   const delta     = targetPx.subtract(desiredPx);
-  // The latlng that should be at screen centre to achieve this
-  const newCentre = map.containerPointToLatLng(L.point(w * 0.5 + delta.x, h * 0.5 + delta.y));
+  const newCentre = map.containerPointToLatLng(
+    L.point(W * 0.5 + delta.x, H * 0.5 + delta.y)
+  );
   map.panTo(newCentre, { animate: animate !== false, duration: 0.5 });
 }
 
@@ -998,9 +1006,10 @@ map.whenReady(function() {
 
   // Rotate a screen point around the map container centre by `deg` degrees
   function rotatePointAroundCenter(x, y, deg) {
-    const container = map.getContainer();
-    const cx = container.offsetWidth  * 0.5;
-    const cy = container.offsetHeight * 0.75;  // matches transform-origin: 50% 75%
+    // Pivot is at screen position (50vw, 75vh) — use window dimensions
+    // since the map container is now much larger than the screen
+    const cx  = window.innerWidth  * 0.5;
+    const cy  = window.innerHeight * 0.75;
     const rad = deg * Math.PI / 180;
     const cos = Math.cos(rad);
     const sin = Math.sin(rad);
@@ -1110,13 +1119,9 @@ function shortestDelta(from, to) {
 }
 
 function applyRotation(heading) {
-  // Only scale up when actually rotating — scale(1) when north-up to avoid
-  // stretching the map display. Scale(4) covers corners on any phone during rotation.
-  const normHeading = ((heading % 360) + 360) % 360;
-  const scale = (normHeading > 1 && normHeading < 359) ? 4 : 1;
-  mapWrapper.style.transform = `scale(${scale}) rotate(${-heading}deg)`;
+  mapWrapper.style.transform = `rotate(${-heading}deg)`;
   northArrow.style.transform = `rotate(${-heading}deg)`;
-  window.mapRotationDeg = normHeading;
+  window.mapRotationDeg = ((heading % 360) + 360) % 360;
 }
 
 function smoothRotation() {
