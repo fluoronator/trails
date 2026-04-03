@@ -352,7 +352,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v31</div>
+  <div id="version-badge">v32</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -783,13 +783,8 @@ function setMode(mode) {
    up by 25% of screen height, then converting back to latlng and
    using a plain panTo. No secondary panBy, no padding options.
 ════════════════════════════════════════════════════════════════════ */
-function panToUserWithOffset(latlng, animate) {
-  const offsetY  = map.getContainer().offsetHeight * 0.25;
-  const zoom     = map.getZoom();
-  // Convert latlng → pixel at current zoom, shift up, convert back
-  const pt       = map.project(latlng, zoom);
-  const shifted  = map.unproject(pt.subtract([0, offsetY]), zoom);
-  map.panTo(shifted, { animate: animate !== false, duration: 0.5 });
+function panToUser(latlng, animate) {
+  map.panTo(latlng, { animate: animate !== false, duration: 0.5 });
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -801,8 +796,7 @@ function showRecenterBtn(show) {
 
 function recenterToUser() {
   if (!S.userLatLng) return;
-  if (map.getZoom() < S.hikingZoom) map.setZoom(S.hikingZoom);
-  panToUserWithOffset(S.userLatLng);
+  map.setView(S.userLatLng, Math.max(map.getZoom(), S.hikingZoom), { animate: true });
   S.userMovedMap = false;
   showRecenterBtn(false);
   clearTimeout(S.recenterTimer);
@@ -878,15 +872,17 @@ function startGeolocation() {
         // First time entering hiking mode — snap to user at hiking zoom
         if (shouldHike && !wasHiking && !S.hasCentered) {
           S.hasCentered = true;
-          map.setZoom(S.hikingZoom);
-          panToUserWithOffset(latlng, false);
+          map.setView(latlng, S.hikingZoom, { animate: true });
           return;  // skip the regular follow this tick
         }
       }
 
       // Regular GPS follow — pan map every update when hiking and not manually panned
-      if (S.isHiking && !S.userMovedMap && movedMetres >= MIN_MOVE_METRES_FOLLOW) {
-        panToUserWithOffset(latlng, true);
+      // Also follow in browse mode when user has pressed Find Me (isTracking)
+      const shouldFollow = (S.isHiking && !S.userMovedMap) ||
+                           (!S.isHiking && S.isTracking);
+      if (shouldFollow && movedMetres >= MIN_MOVE_METRES_FOLLOW) {
+        panToUser(latlng, true);
       }
 
       const acc = pos.coords.accuracy ? `± ${Math.round(pos.coords.accuracy)}m` : '';
@@ -921,8 +917,7 @@ document.getElementById('locate-btn').addEventListener('click', () => {
       S.userMovedMap = false;
       btn.textContent = 'Go to Park';
       btn.classList.add('go-park');
-      if (map.getZoom() < S.hikingZoom) map.setZoom(S.hikingZoom);
-      panToUserWithOffset(S.userLatLng);
+      map.setView(S.userLatLng, Math.max(map.getZoom(), S.hikingZoom), { animate: true });
       // While isTracking in browse mode, pan on each GPS update
     } else {
       showToast('Waiting for location…');
