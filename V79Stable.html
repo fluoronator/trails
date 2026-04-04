@@ -538,7 +538,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v80</div>
+  <div id="version-badge">v78</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -643,34 +643,18 @@ const SETTINGS = {
 
 /* ═══════════════════════════════════════════════════════════════════
    PARK CONFIGURATION
-   ─────────────────────────────────────────────────────────────────
-   To add a park:
-   1. Add an entry to this array
-   2. Set id to a short URL-friendly name (no spaces, lowercase)
-   3. Put the GeoJSON file in the same folder as index.html
-   4. Create a QR code pointing to:
-      https://yourusername.github.io/trails/?park=your-park-id
-
-   If no ?park= parameter is given, the first park in the list loads.
+   Add more parks here. geojsonUrl = relative path or full URL.
 ════════════════════════════════════════════════════════════════════ */
 const PARKS = [
   {
-    id:            'hurricane-creek',   // ?park=hurricane-creek loads hurricane-creek.geojson
-    name:          'Hurricane Creek Park',
+    id:            'trail-park-1',
+    name:          'Trail Park',
+    geojsonUrl:    'trails.geojson',
     hikingRadius:  SETTINGS.hikingRadius,
     defaultZoom:   SETTINGS.browsingZoom,
     hikingZoom:    SETTINGS.hikingZoom,
     defaultCenter: null,
-  },
-  // Add more parks here — geojsonUrl is automatic (id + '.geojson'):
-  // {
-  //   id:            'jones-valley',      // ?park=jones-valley loads jones-valley.geojson
-  //   name:          'Jones Valley Trail',
-  //   hikingRadius:  SETTINGS.hikingRadius,
-  //   defaultZoom:   SETTINGS.browsingZoom,
-  //   hikingZoom:    SETTINGS.hikingZoom,
-  //   defaultCenter: null,
-  // },
+  }
 ];
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -692,27 +676,19 @@ const RECENTER_DELAY_MS = SETTINGS.recenterDelaySec * 1000;
 const TOAST_MS          = 2500;
 
 /* ═══════════════════════════════════════════════════════════════════
-   PARK SELECTION FROM URL
-   Reads ?park=id from the URL and finds the matching park.
-   Falls back to the first park if no parameter or unrecognised id.
+   APP STATE
 ════════════════════════════════════════════════════════════════════ */
-const urlParkId    = new URLSearchParams(window.location.search).get('park');
-const selectedPark = PARKS.find(p => p.id === urlParkId) || PARKS[0];
-// GeoJSON filename is derived from park id — no need to specify separately
-selectedPark.geojsonUrl = selectedPark.id + '.geojson';
-
-
 const S = {
-  park:         selectedPark,
+  park:         PARKS[0],
   isHiking:     false,
-  isTracking:   false,
-  userMovedMap: false,
+  isTracking:   false,   // map follows user
+  userMovedMap: false,   // user has manually panned/zoomed
   userLatLng:   null,
-  hasCentered:  false,
+  hasCentered:  false,   // have we done the first setView to user?
   parkCenter:   null,
   parkBounds:   null,
-  defaultZoom:  selectedPark.defaultZoom,
-  hikingZoom:   selectedPark.hikingZoom,
+  defaultZoom:  PARKS[0].defaultZoom,
+  hikingZoom:   PARKS[0].hikingZoom,
   recenterTimer: null,
   zoomTimer:    null,
 };
