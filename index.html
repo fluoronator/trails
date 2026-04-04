@@ -538,7 +538,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v76</div>
+  <div id="version-badge">v77</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -1637,20 +1637,21 @@ document.getElementById('feedback-form').addEventListener('submit', async e => {
       headers: { 'Accept': 'application/json' },
       body: new FormData(e.target),
     });
+    const json = await response.json().catch(() => ({}));
     if (response.ok) {
       document.getElementById('feedback-form').classList.add('hidden');
       document.getElementById('feedback-thankyou').classList.remove('hidden');
-      // Auto-close after 2.5 seconds
       setTimeout(() => {
         document.getElementById('feedback-overlay').classList.add('hidden');
       }, 2500);
     } else {
-      showToast('Could not send — please try again');
+      const reason = json.error || json.errors?.[0]?.message || `Error ${response.status}`;
+      showToast(`Could not send: ${reason}`, 5000);
       btn.textContent = 'Send Feedback';
       btn.disabled = false;
     }
-  } catch {
-    showToast('Could not send — check your connection');
+  } catch (err) {
+    showToast(`Could not send: ${err.message}`, 5000);
     btn.textContent = 'Send Feedback';
     btn.disabled = false;
   }
