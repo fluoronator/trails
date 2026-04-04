@@ -341,7 +341,7 @@
       border: none !important;
       box-shadow: none !important;
       color: #000 !important;
-      font-size: 11px !important;
+      font-size: 13px !important;
       font-weight: 600 !important;
       line-height: 1.2 !important;
       padding: 0 !important;
@@ -370,7 +370,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v60</div>
+  <div id="version-badge">v61</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -644,9 +644,9 @@ function updatePoiLabelVisibility() {
   const showLabel = zoom >= POI_LABEL_MIN_ZOOM;
   const showIcon  = zoom >= POI_ICON_MIN_ZOOM;
 
-  // Scale font size with zoom: 11px at zoom 17, 13px at 18, 15px at 19+
-  const fontSize = Math.max(11, Math.min(15, 11 + (zoom - 17) * 2));
-  const maxWidth = Math.max(70, Math.min(110, 70 + (zoom - 17) * 20));
+  // Scale font size with zoom: 13px at zoom 17, 15px at 18, 17px at 19+
+  const fontSize = Math.max(13, Math.min(17, 13 + (zoom - 17) * 2));
+  const maxWidth = Math.max(80, Math.min(120, 80 + (zoom - 17) * 20));
 
   poiLayers.forEach(layer => {
     // Toggle and scale label
@@ -703,7 +703,7 @@ function loadPark(park) {
               layer.bindTooltip(cleanTitle, {
                 permanent:  true,
                 direction:  'right',
-                offset:     [2, -4],
+                offset:     [8, -8],
                 className:  'poi-label',
               });
             }
