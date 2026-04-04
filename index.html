@@ -341,11 +341,11 @@
       border: none !important;
       box-shadow: none !important;
       color: #000 !important;
-      font-size: 8px !important;
+      font-size: 11px !important;
       font-weight: 600 !important;
-      line-height: 1.05 !important;
+      line-height: 1.2 !important;
       padding: 0 !important;
-      max-width: 60px !important;
+      max-width: 80px !important;
       white-space: normal !important;
       word-wrap: break-word !important;
       text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff !important;
@@ -370,7 +370,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v59</div>
+  <div id="version-badge">v60</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -530,12 +530,12 @@ function styleForPolygon(p) {
 }
 function makePOIIcon(p) {
   const c = p.stroke || '#e05c2a';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="13" viewBox="0 0 26 34">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="24" viewBox="0 0 26 34">
     <path d="M13 0C5.82 0 0 5.82 0 13c0 8.66 13 21 13 21S26 21.66 26 13C26 5.82 20.18 0 13 0z" fill="${c}" opacity="0.92"/>
     <circle cx="13" cy="13" r="5.5" fill="white" opacity="0.88"/>
   </svg>`;
   return L.divIcon({ html: svg, className: '',
-    iconSize: [10,13], iconAnchor: [5,13], popupAnchor: [0,-13] });
+    iconSize: [18,24], iconAnchor: [9,24], popupAnchor: [0,-24] });
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -643,12 +643,21 @@ function updatePoiLabelVisibility() {
   const zoom      = map.getZoom();
   const showLabel = zoom >= POI_LABEL_MIN_ZOOM;
   const showIcon  = zoom >= POI_ICON_MIN_ZOOM;
+
+  // Scale font size with zoom: 11px at zoom 17, 13px at 18, 15px at 19+
+  const fontSize = Math.max(11, Math.min(15, 11 + (zoom - 17) * 2));
+  const maxWidth = Math.max(70, Math.min(110, 70 + (zoom - 17) * 20));
+
   poiLayers.forEach(layer => {
-    // Toggle label
+    // Toggle and scale label
     const tt = layer.getTooltip();
     if (tt) {
       const el = tt.getElement();
-      if (el) el.classList.toggle('poi-label-hidden', !showLabel);
+      if (el) {
+        el.classList.toggle('poi-label-hidden', !showLabel);
+        el.style.fontSize = fontSize + 'px';
+        el.style.maxWidth = maxWidth + 'px';
+      }
     }
     // Toggle icon
     if (layer._icon) {
