@@ -370,7 +370,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v63</div>
+  <div id="version-badge">v64</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -784,8 +784,8 @@ function loadPark(park) {
       document.getElementById('park-name').textContent = '🥾 ' + parkName;
       lastGeojsonData = data;
       showToast('Trails loaded ✓');
-      // Trail labels disabled — revisit later
-      // buildTrailLabels(data);
+      // Build trail labels after a short delay so map zoom is settled
+      setTimeout(() => buildTrailLabels(data), 400);
       setTimeout(updatePoiLabelVisibility, 800);
       startGeolocation();
     })
