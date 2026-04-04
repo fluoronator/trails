@@ -207,10 +207,10 @@
     .layer-btn:not(:last-child) { border-right: 1px solid var(--border); }
     .layer-btn.active { background: var(--green); color: #000; }
 
-    /* Find Me / Go to Park — only shown in browsing mode */
-    #locate-btn {
+    /* Go to Park — shown in browsing mode when panned away from park */
+    #go-to-park-btn {
       flex: 1;
-      background: var(--blue);
+      background: var(--orange);
       color: #000;
       border: none;
       border-radius: 8px;
@@ -219,11 +219,10 @@
       padding: 9px 14px;
       cursor: pointer;
       letter-spacing: 0.04em;
-      transition: background 0.2s, opacity 0.2s;
+      transition: opacity 0.2s;
     }
-    #locate-btn:active { opacity: 0.75; }
-    #locate-btn.go-park { background: var(--orange); }
-    #locate-btn.hidden  { display: none; }
+    #go-to-park-btn:active { opacity: 0.75; }
+    #go-to-park-btn.hidden { display: none; }
 
     #zoom-badge {
       position: absolute;
@@ -385,7 +384,7 @@
     <div id="mode-badge" class="browsing">Browsing</div>
   </div>
 
-  <div id="version-badge">v66</div>
+  <div id="version-badge">v67</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -431,7 +430,7 @@
       <button class="layer-btn"        data-layer="topo">Topo</button>
       <button class="layer-btn active" data-layer="sat">Sat</button>
     </div>
-    <button id="locate-btn">Find Me</button>
+    <button id="go-to-park-btn" class="hidden">🗺 Go to Park</button>
   </div>
 
 </div><!-- end #ui-overlay -->
@@ -850,13 +849,12 @@ function setMode(mode) {
   window.isHikingMode = hiking;
 
   const badge   = document.getElementById('mode-badge');
-  const locBtn  = document.getElementById('locate-btn');
   const wrapper = document.getElementById('map-rotate-wrapper');
 
   if (hiking) {
     badge.textContent = '⛰ Hiking';
     badge.className   = 'hiking';
-    locBtn.classList.add('hidden');
+    document.getElementById('go-to-park-btn').classList.add('hidden');
     if (!wasHiking) {
       S.userMovedMap = false;
       showRecenterBtn(false);
@@ -865,7 +863,6 @@ function setMode(mode) {
   } else {
     badge.textContent = '🗺 Browsing';
     badge.className   = 'browsing';
-    locBtn.classList.remove('hidden');
     showCompassBtn(false);
     clearTimeout(compassCheckTimer);
   }
@@ -1049,35 +1046,35 @@ function startGeolocation() {
 /* ═══════════════════════════════════════════════════════════════════
    FIND ME / GO TO PARK BUTTON  (browsing mode only)
 ════════════════════════════════════════════════════════════════════ */
-document.getElementById('locate-btn').addEventListener('click', () => {
-  const btn = document.getElementById('locate-btn');
-  if (S.isTracking) {
-    // "Go to Park" — stop tracking, fly back to park
-    S.isTracking = false;
-    btn.textContent = 'Find Me';
-    btn.classList.remove('go-park');
-    if (S.parkBounds && S.parkBounds.isValid()) {
-      map.fitBounds(S.parkBounds, { padding: [50,50], animate: true });
-    }
+// Go to Park button — browse mode, flies back to park overview
+document.getElementById('go-to-park-btn').addEventListener('click', () => {
+  S.isTracking = false;
+  document.getElementById('go-to-park-btn').classList.add('hidden');
+  if (S.parkBounds && S.parkBounds.isValid()) {
+    map.fitBounds(S.parkBounds, { padding: [50,50], animate: true });
+  }
+});
+
+// Crosshair button — flies to user location in both hiking and browsing mode
+document.getElementById('ctrl-zoom-in') .addEventListener('click', () => map.zoomIn());
+document.getElementById('ctrl-zoom-out').addEventListener('click', () => map.zoomOut());
+document.getElementById('ctrl-recenter').addEventListener('click', () => {
+  if (S.isHiking) {
+    // Hiking mode — snap back to user and resume following
+    recenterToUser();
   } else {
-    // "Find Me" — fly to user and start following
+    // Browsing mode — fly to user and start following, show Go to Park
     if (S.userLatLng) {
       S.isTracking   = true;
       S.userMovedMap = false;
-      btn.textContent = 'Go to Park';
-      btn.classList.add('go-park');
+      document.getElementById('go-to-park-btn').classList.remove('hidden');
       if (map.getZoom() < S.hikingZoom) map.setZoom(S.hikingZoom);
       panToUser(S.userLatLng, true);
-      // While isTracking in browse mode, pan on each GPS update
     } else {
       showToast('Waiting for location…');
     }
   }
 });
-
-document.getElementById('ctrl-zoom-in') .addEventListener('click', () => map.zoomIn());
-document.getElementById('ctrl-zoom-out').addEventListener('click', () => map.zoomOut());
-document.getElementById('ctrl-recenter').addEventListener('click', recenterToUser);
 
 document.querySelectorAll('.layer-btn').forEach(btn =>
   btn.addEventListener('click', () => setTileLayer(btn.dataset.layer))
