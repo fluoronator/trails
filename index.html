@@ -543,7 +543,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v90</div>
+  <div id="version-badge">v88</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -1460,14 +1460,12 @@ function handleOrientation(e) {
   }
 
   if (!window.isHikingMode) {
-    // Browsing mode — update the needle only, keep map north-up.
-    // Use the same unbounded heading accumulation as hiking mode to
-    // prevent the needle spinning the long way around when passing north.
-    targetHeading += shortestDelta(targetHeading, raw);
-    currentHeading = targetHeading;
-    northArrow.style.transform = `rotate(${-currentHeading}deg)`;
+    // Browsing mode — update the needle only, keep map north-up
+    northArrow.style.transform = `rotate(${-raw}deg)`;
     // Reset map rotation if we were previously in hiking mode
-    if (mapWrapper.style.transform !== 'rotate(0deg)') {
+    if (currentHeading !== 0 || targetHeading !== 0) {
+      currentHeading = 0;
+      targetHeading  = 0;
       mapWrapper.style.transform = 'rotate(0deg)';
     }
     return;
