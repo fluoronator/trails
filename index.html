@@ -256,7 +256,7 @@
     #feedback-overlay {
       position: absolute;
       inset: 0;
-      background: rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.5);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
       z-index: 2500;
@@ -271,13 +271,13 @@
     #feedback-overlay.hidden { display: none; }
 
     #feedback-panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: #ffffff;
+      border: 1px solid #cccccc;
       border-radius: 16px;
       width: 100%;
       max-width: 380px;
       padding: 20px;
-      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.4);
     }
 
     #feedback-header {
@@ -289,19 +289,19 @@
     #feedback-title {
       font-size: 17px;
       font-weight: 700;
-      color: var(--text);
+      color: #111111;
     }
     #feedback-close {
       background: none;
       border: none;
-      color: var(--muted);
+      color: #555555;
       font-size: 18px;
       cursor: pointer;
       padding: 4px 8px;
       border-radius: 6px;
       line-height: 1;
     }
-    #feedback-close:active { background: var(--border); }
+    #feedback-close:active { background: #eeeeee; }
 
     #feedback-form {
       display: flex;
@@ -309,40 +309,40 @@
       gap: 12px;
     }
     #feedback-message {
-      background: var(--bg);
-      border: 1px solid var(--border);
+      background: #f5f5f5;
+      border: 1.5px solid #cccccc;
       border-radius: 10px;
-      color: var(--text);
-      font-size: 14px;
+      color: #111111;
+      font-size: 15px;
       font-family: inherit;
       padding: 10px 12px;
       resize: none;
       height: 120px;
       outline: none;
     }
-    #feedback-message:focus { border-color: var(--blue); }
+    #feedback-message:focus { border-color: #1a7abf; }
     #feedback-contact {
-      background: var(--bg);
-      border: 1px solid var(--border);
+      background: #f5f5f5;
+      border: 1.5px solid #cccccc;
       border-radius: 10px;
-      color: var(--text);
-      font-size: 13px;
+      color: #111111;
+      font-size: 14px;
       font-family: inherit;
       padding: 10px 12px;
       outline: none;
     }
-    #feedback-contact:focus { border-color: var(--blue); }
+    #feedback-contact:focus { border-color: #1a7abf; }
     #feedback-contact::placeholder,
-    #feedback-message::placeholder { color: var(--muted); }
+    #feedback-message::placeholder { color: #888888; }
 
     #feedback-submit {
-      background: var(--blue);
-      color: #000;
+      background: #1a7abf;
+      color: #ffffff;
       border: none;
       border-radius: 10px;
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 700;
-      padding: 12px;
+      padding: 13px;
       cursor: pointer;
       transition: opacity 0.2s;
     }
@@ -359,13 +359,13 @@
     #feedback-thankyou.hidden { display: none; }
     #feedback-thanks-icon {
       font-size: 40px;
-      color: var(--green);
+      color: #1a7abf;
       margin-bottom: 10px;
     }
     #feedback-thanks-text {
       font-size: 16px;
       font-weight: 600;
-      color: var(--text);
+      color: #111111;
     }
 
     /* ── IOS COMPASS TAP OVERLAY ── */
@@ -543,7 +543,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v87</div>
+  <div id="version-badge">v91</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -612,7 +612,7 @@ const SETTINGS = {
   // How close (metres) to the park centre before Hiking mode activates.
   // Increase to a large number (e.g. 999999) to force Hiking mode
   // while testing from your desk.
-  hikingRadius:      90000,
+  hikingRadius:      3200,
 
   // ── POI MARKERS ─────────────────────────────────────────────────
   // Zoom level below which POI icons disappear (avoids clutter)
@@ -1400,9 +1400,10 @@ map.whenReady(function() {
 const mapWrapper = document.getElementById('map-rotate-wrapper');
 const northArrow = document.getElementById('north-arrow');
 
-let currentHeading  = 0;   // unbounded — never normalize to [0,360)
-let targetHeading   = 0;   // unbounded
-let smoothingActive = false;
+let currentHeading      = 0;   // unbounded — never normalize to [0,360)
+let targetHeading       = 0;   // unbounded
+let browsingNeedleHeading = 0; // unbounded — needle only in browsing mode, never affects map rotation
+let smoothingActive     = false;
 
 function shortestDelta(from, to) {
   return ((to - from + 540) % 360) - 180;
@@ -1460,9 +1461,16 @@ function handleOrientation(e) {
   }
 
   if (!window.isHikingMode) {
-    // Browsing mode — update the needle only, keep map north-up
-    northArrow.style.transform = `rotate(${-raw}deg)`;
-    // Reset map rotation if we were previously in hiking mode
+    // Browsing mode — update the needle only, keep map north-up.
+    // IMPORTANT: Do NOT modify currentHeading or targetHeading here.
+    // The drag patch uses currentHeading to rotate pointer coordinates —
+    // if it's non-zero the patch thinks the map is rotated and panning
+    // goes in the wrong direction. In browsing mode the map is always
+    // north-up so currentHeading must stay 0.
+    // Use a separate unbounded accumulator just for the needle display.
+    browsingNeedleHeading += shortestDelta(browsingNeedleHeading, raw);
+    northArrow.style.transform = `rotate(${-browsingNeedleHeading}deg)`;
+    // Ensure map stays north-up
     if (currentHeading !== 0 || targetHeading !== 0) {
       currentHeading = 0;
       targetHeading  = 0;
@@ -1563,6 +1571,7 @@ function showTapOverlay() {
 // Called from setMode() when hiking mode activates
 function checkCompassOnHikingStart() {
   smoothingActive = false;
+  browsingNeedleHeading = 0;  // reset so needle doesn't jump on mode switch
   if (typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function' &&
       !orientationPermissionGranted) {
