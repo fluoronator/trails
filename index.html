@@ -247,10 +247,10 @@
       border-radius: 8px;
       line-height: 1;
       flex-shrink: 0;
-      opacity: 0.75;
-      transition: opacity 0.2s;
+      color: var(--muted);
+      transition: color 0.2s, opacity 0.2s;
     }
-    #feedback-btn:active { opacity: 1; }
+    #feedback-btn:active { color: var(--text); }
 
     /* ── FEEDBACK OVERLAY ── */
     #feedback-overlay {
@@ -543,7 +543,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v83</div>
+  <div id="version-badge">v84</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
