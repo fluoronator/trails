@@ -3,10 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <!-- Full-screen mode — re-enable when done testing:
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  -->
   <title>Trail Navigator</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
@@ -75,19 +73,14 @@
     #top-bar {
       position: absolute;
       top: 0; left: 0; right: 0;
-      /* Height accounts for iOS status bar (safe area) + content height.
-         env(safe-area-inset-top) = 0 on non-notch devices and in Chrome,
-         but equals the status bar height in Safari on notched iPhones. */
-      height: calc(56px + env(safe-area-inset-top));
+      height: 56px;
       background: rgba(13,17,23,0.88);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--border);
       display: flex;
-      align-items: flex-end;  /* push content to bottom of bar, above safe area */
+      align-items: center;
       padding: 0 12px;
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: 10px;
       gap: 10px;
     }
 
@@ -118,7 +111,7 @@
     /* ── NORTH ARROW (top-right, visible in hiking mode) ── */
     #north-arrow {
       position: absolute;
-      top: calc(66px + env(safe-area-inset-top)); right: 12px;
+      top: 66px; right: 12px;
       width: 48px; height: 48px;
       background: rgba(13,17,23,0.88);
       backdrop-filter: blur(8px);
@@ -135,7 +128,7 @@
     /* ── MAP CONTROLS (zoom + recenter) — below the compass ── */
     #map-controls {
       position: absolute;
-      top: calc(126px + env(safe-area-inset-top)); right: 12px;
+      top: 126px; right: 12px;
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -242,7 +235,7 @@
 
     #zoom-badge {
       position: absolute;
-      top: calc(102px + env(safe-area-inset-top)); left: 12px;
+      top: 102px; left: 12px;
       background: rgba(0,0,0,0.7);
       color: #fff;
       font-size: 12px;
@@ -406,7 +399,7 @@
     /* ── ZOOM BADGE ── */
     #zoom-badge {
       position: absolute;
-      top: calc(96px + env(safe-area-inset-top)); left: 12px;
+      top: 96px; left: 12px;
       background: rgba(0,0,0,0.7);
       color: #fff;
       font-size: 12px;
@@ -420,7 +413,7 @@
     /* ── VERSION BADGE ── */
     #version-badge {
       position: absolute;
-      top: calc(60px + env(safe-area-inset-top)); left: 12px;
+      top: 60px; left: 12px;
       background: #ff0080;
       color: #fff;
       font-size: 16px;
@@ -434,7 +427,7 @@
     /* ── STATUS TOAST ── */
     #status-toast {
       position: absolute;
-      top: calc(64px + env(safe-area-inset-top)); left: 50%;
+      top: 64px; left: 50%;
       transform: translateX(-50%);
       background: rgba(22,27,34,0.93);
       border: 1px solid var(--border);
@@ -577,7 +570,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v108-test</div>
+  <div id="version-badge">v94</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -613,7 +606,7 @@
     <div id="tap-overlay-inner">
       <div id="tap-overlay-icon">🧭</div>
       <div id="tap-overlay-title">Tap to Enable Compass</div>
-      <div id="tap-overlay-sub">Tap Allow on the next prompt to enable map rotation</div>
+      <div id="tap-overlay-sub">Required for map rotation</div>
     </div>
   </div>
 
@@ -1492,27 +1485,13 @@ function smoothRotation() {
 
 function handleOrientation(e) {
   orientationEventCount++;
-  if (orientationEventCount === 1) {
-    showCompassBtn(false);
-  }
+  if (orientationEventCount === 1) showCompassBtn(false);
 
   // Get raw heading regardless of mode
   let raw;
   if (typeof e.webkitCompassHeading === 'number' && e.webkitCompassHeading >= 0) {
-    // iOS WebKit — webkitCompassHeading is true north referenced.
-    // GSA (Google Search App) may report 90° off due to its internal
-    // orientation handling — correct by subtracting screen rotation angle.
+    // iOS — webkitCompassHeading is always true north, portrait-corrected by the OS
     raw = e.webkitCompassHeading;
-    const isGSA = /GSA/.test(ua);
-    if (isGSA) {
-      let screenAngle = 0;
-      if (screen.orientation && screen.orientation.angle !== undefined) {
-        screenAngle = screen.orientation.angle;
-      } else if (typeof window.orientation === 'number') {
-        screenAngle = window.orientation;
-      }
-      raw = ((raw - screenAngle) + 360) % 360;
-    }
   } else if (e.alpha != null) {
     // Android / Chromium (including Tesla) — alpha is CCW from north, convert to CW
     raw = (360 - e.alpha) % 360;
@@ -1608,26 +1587,29 @@ function startOrientationListening() {
 }
 
 // iOS: check if permission is already granted before showing overlay.
-// Try requesting silently — if already granted it resolves immediately
-// without showing any system dialog. On rejection show tap overlay.
-const ua = navigator.userAgent;
-
+// Calling requestPermission() on load resolves silently if already granted —
+// Safari only shows a system dialog when called inside a user gesture and
+// permission hasn't been granted yet. On repeat visits this resolves
+// immediately to 'granted' with no dialog shown.
 if (typeof DeviceOrientationEvent !== 'undefined' &&
     typeof DeviceOrientationEvent.requestPermission === 'function') {
   DeviceOrientationEvent.requestPermission()
     .then(response => {
       if (response === 'granted') {
+        // Already granted — start immediately, no dialog shown
         window.addEventListener('deviceorientation', handleOrientation, true);
         orientationPermissionGranted = true;
       } else {
+        // Not yet granted — show tap overlay to get user gesture
         showTapOverlay();
       }
     })
     .catch(() => {
+      // Called outside user gesture and not yet granted — show tap overlay
       showTapOverlay();
     });
 } else {
-  // Android / desktop — start immediately
+  // Android / desktop — start immediately, no permission needed
   startOrientationListening();
 }
 
@@ -1644,7 +1626,7 @@ function showTapOverlay() {
 // Called from setMode() when hiking mode activates
 function checkCompassOnHikingStart() {
   smoothingActive = false;
-  browsingNeedleHeading = 0;
+  browsingNeedleHeading = 0;  // reset so needle doesn't jump on mode switch
   if (typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function' &&
       !orientationPermissionGranted) {
