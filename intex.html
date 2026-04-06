@@ -577,7 +577,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v99-debug2</div>
+  <div id="version-badge">v99-debug3</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -1616,7 +1616,7 @@ function dbgBadge(msg) {
   const el = document.getElementById('version-badge');
   if (el) el.textContent = msg;
 }
-dbgBadge(`${isChrome?'CR':'OT'} np:${needsPermission} RP:${typeof DeviceOrientationEvent?.requestPermission==='function'}`);
+dbgBadge(navigator.userAgent.slice(0,80));
 
 if (needsPermission) {
   // Safari iOS path
