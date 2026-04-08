@@ -559,7 +559,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v105</div>
+  <div id="version-badge">v104</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -877,20 +877,6 @@ function loadPark(park) {
     .then(data => {
       if (geojsonLayer) map.removeLayer(geojsonLayer);
       poiLayers.length = 0;  // clear on reload
-
-      // Scan for a ParkCenter feature before creating the layer
-      // properties.class === "ParkCenter" (case-insensitive)
-      let geojsonParkCenter = null;
-      (data.features || []).forEach(f => {
-        if (f.geometry && f.geometry.type === 'Point') {
-          const cls = ((f.properties || {}).class || '').toLowerCase();
-          if (cls === 'parkcenter') {
-            const [lng, lat] = f.geometry.coordinates;
-            geojsonParkCenter = L.latLng(lat, lng);
-          }
-        }
-      });
-
       geojsonLayer = L.geoJSON(data, {
         style: f => {
           const p = f.properties || {}, t = f.geometry.type;
@@ -900,54 +886,52 @@ function loadPark(park) {
         },
         pointToLayer: (f, ll) => {
           const p = f.properties || {};
-          const cls = (p.class || p['marker-symbol'] || '').toLowerCase();
-          const isLabel = cls === 'label';
-          const isParkCenter = cls === 'parkcenter';
-          const icon = (isLabel || isParkCenter)
-            // Invisible 1px icon — nothing shown on map
+          const isLabel = (p.class || p['marker-symbol'] || '').toLowerCase() === 'label';
+          const icon = isLabel
+            // Invisible 1px icon — only the tooltip text is shown
             ? L.divIcon({ html: '', className: '', iconSize: [1,1], iconAnchor: [0,0] })
             : makePOIIcon(p);
-          const marker = L.marker(ll, { icon, interactive: false });
-          if (!isParkCenter) poiLayers.push(marker);
+          const marker = L.marker(ll, { icon, interactive: !isLabel });
+          poiLayers.push(marker);
           return marker;
         },
         onEachFeature: (f, layer) => {
           const p = f.properties || {}, t = f.geometry.type;
-          const cls = (p.class || p['marker-symbol'] || '').toLowerCase();
           const title = (p.title || '').trim();
           const isTS  = /^\d{1,2}:\d{2}:\d{2}/.test(title);
           const cleanTitle = isTS ? '' : title;
-          const isLabel = cls === 'label';
-          const isParkCenter = cls === 'parkcenter';
+          const isLabel = (p.class || p['marker-symbol'] || '').toLowerCase() === 'label';
 
-          if (t === 'Point' && cleanTitle && !isParkCenter) {
-            if (isLabel) {
-              // Text-only label — centred on the coordinate, no icon offset
-              layer.bindTooltip(cleanTitle, {
-                permanent:  true,
-                direction:  'center',
-                offset:     [0, 0],
-                className:  'map-label',
-              });
-            } else {
-              // Normal POI — label beside the pin
-              layer.bindTooltip(cleanTitle, {
-                permanent:  true,
-                direction:  'right',
-                offset:     SETTINGS.poiLabelOffset,
-                className:  'poi-label',
-              });
+          if (t === 'Point') {
+            if (cleanTitle) {
+              if (isLabel) {
+                // Text-only label — centred on the coordinate, no icon offset
+                layer.bindTooltip(cleanTitle, {
+                  permanent:  true,
+                  direction:  'center',
+                  offset:     [0, 0],
+                  className:  'map-label',
+                });
+              } else {
+                // Normal POI — label beside the pin
+                layer.bindTooltip(cleanTitle, {
+                  permanent:  true,
+                  direction:  'right',
+                  offset:     SETTINGS.poiLabelOffset,
+                  className:  'poi-label',
+                });
+              }
             }
+          } else if (t === 'LineString' || t === 'MultiLineString') {
           }
         },
       }).addTo(map);
 
       S.parkBounds = geojsonLayer.getBounds();
       if (S.parkBounds.isValid()) {
-        // Priority: GeoJSON ParkCenter → PARKS array defaultCenter → bounds center
-        S.parkCenter = geojsonParkCenter
-          || (park.defaultCenter ? L.latLng(park.defaultCenter[0], park.defaultCenter[1]) : null)
-          || S.parkBounds.getCenter();
+        S.parkCenter = park.defaultCenter
+          ? L.latLng(park.defaultCenter[0], park.defaultCenter[1])
+          : S.parkBounds.getCenter();
         // Open at zoom 18 centred on the park
         map.setView(S.parkCenter, S.defaultZoom, { animate: false });
         updateZoomBadge();
