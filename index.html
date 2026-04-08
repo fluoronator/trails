@@ -559,7 +559,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v101</div>
+  <div id="version-badge">v102</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -1444,17 +1444,21 @@ function showCompassBtn(show) { /* replaced by tap overlay */ }
 function startOrientationListening() {
   if (typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // iOS Safari — called from inside tap overlay (user gesture satisfied).
-    // Call requestPermission() here; it will resolve to 'granted' since
-    // we are inside a genuine user gesture.
-    DeviceOrientationEvent.requestPermission()
-      .then(response => {
-        if (response === 'granted') {
-          window.addEventListener('deviceorientation', handleOrientation, true);
-          orientationPermissionGranted = true;
-        }
-      })
-      .catch(err => console.warn('Compass permission error:', err));
+    if (isChromeLike) {
+      // Chrome/GSA — permission not needed, just start listening
+      window.addEventListener('deviceorientation', handleOrientation, true);
+      orientationPermissionGranted = true;
+    } else {
+      // Safari — called inside tap gesture, requestPermission works here
+      DeviceOrientationEvent.requestPermission()
+        .then(response => {
+          if (response === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation, true);
+            orientationPermissionGranted = true;
+          }
+        })
+        .catch(err => console.warn('Compass permission error:', err));
+    }
   } else {
     // Android / desktop — no permission needed
     let gotAbsolute = false;
@@ -1472,37 +1476,18 @@ function startOrientationListening() {
 }
 
 // iOS compass permission:
-// Call requestPermission() directly on load for all iOS browsers.
-// Safari will show the system dialog — this is unavoidable and is the
-// minimum possible interaction (one tap on the system dialog).
-// Chrome/GSA resolve silently without any dialog.
-// Android/desktop: no permission needed.
+// requestPermission() MUST be called inside a user gesture on all iOS
+// browsers — calling it outside a gesture silently fails or shows a
+// system dialog. The tap overlay provides the required user gesture.
+// Chrome/GSA resolve requestPermission() without showing a system dialog.
+// Safari shows the system dialog after the tap — unavoidable on iOS.
+// Android/desktop: no permission needed, start immediately.
 
 const isChromeLike = /CriOS|GSA/.test(navigator.userAgent);
 
 if (typeof DeviceOrientationEvent !== 'undefined' &&
     typeof DeviceOrientationEvent.requestPermission === 'function') {
-  if (isChromeLike) {
-    // Chrome/GSA — resolves silently, no dialog
-    DeviceOrientationEvent.requestPermission()
-      .then(response => {
-        if (response === 'granted') {
-          window.addEventListener('deviceorientation', handleOrientation, true);
-          orientationPermissionGranted = true;
-        }
-      })
-      .catch(() => {});
-  } else {
-    // Safari and unknown iOS browsers — system dialog appears, one tap
-    DeviceOrientationEvent.requestPermission()
-      .then(response => {
-        if (response === 'granted') {
-          window.addEventListener('deviceorientation', handleOrientation, true);
-          orientationPermissionGranted = true;
-        }
-      })
-      .catch(() => {});
-  }
+  showTapOverlay();
 } else {
   // Android / desktop — start immediately, no permission needed
   startOrientationListening();
