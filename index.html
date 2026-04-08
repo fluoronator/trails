@@ -1500,9 +1500,20 @@ const compassCached = (() => {
 if (typeof DeviceOrientationEvent !== 'undefined' &&
     typeof DeviceOrientationEvent.requestPermission === 'function') {
   if (isChromeLike && compassCached) {
-    // Chrome/GSA previously granted — start directly, no overlay
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    orientationPermissionGranted = true;
+    // Chrome/GSA previously granted — call requestPermission silently
+    // (resolves without dialog for Chrome/GSA) to activate the sensor
+    DeviceOrientationEvent.requestPermission()
+      .then(response => {
+        if (response === 'granted') {
+          window.addEventListener('deviceorientation', handleOrientation, true);
+          orientationPermissionGranted = true;
+        } else {
+          // Permission revoked — clear cache and show overlay
+          try { localStorage.removeItem('compassGranted'); } catch(e) {}
+          showTapOverlay();
+        }
+      })
+      .catch(() => showTapOverlay());
   } else {
     // First visit or Safari — show tap overlay
     showTapOverlay();
