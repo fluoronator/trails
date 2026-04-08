@@ -559,7 +559,7 @@
     </div>
   </div>
 
-  <div id="version-badge">v97</div>
+  <div id="version-badge">v96</div>
   <div id="zoom-badge"></div>
 
   <div id="status-toast" class="hidden">Ready</div>
@@ -1444,17 +1444,20 @@ function showCompassBtn(show) { /* replaced by tap overlay */ }
 function startOrientationListening() {
   if (typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // iOS — permission was already requested by the silent call on load.
-    // The tap overlay tap is just the user gesture needed for requestPermission.
-    // Call it once more inside the gesture to activate the sensor, then listen.
+    // iOS — must call requestPermission from within a user gesture handler
     DeviceOrientationEvent.requestPermission()
       .then(response => {
         if (response === 'granted') {
           window.addEventListener('deviceorientation', handleOrientation, true);
           orientationPermissionGranted = true;
+          showToast('Compass enabled ✓');
+        } else {
+          showToast('Compass permission denied — rotation unavailable');
         }
       })
-      .catch(err => console.warn('Compass permission error:', err));
+      .catch(err => {
+        console.warn('Compass permission error:', err);
+      });
   } else {
     // Android / desktop — no permission needed
     let gotAbsolute = false;
