@@ -544,7 +544,7 @@
         "marker-size": 1,
         "marker-rotation": 0,
         "marker-symbol": "point",
-        "marker-color": "#000000",
+        "marker-color": "#FF0000",
         "-originally-created-on": 1775656762380,
         "class": "Marker",
         "updated": 1775680506675,
