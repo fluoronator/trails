@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="app-version" content="v115" />
-  <title>Trail Navigator v115</title>
+  <meta name="app-version" content="v116" />
+  <title>Trail Navigator v116</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -98,15 +98,14 @@
     }
 
     #mode-badge {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      padding: 3px 10px;
-      border-radius: 20px;
+      font-size: 18px;
+      line-height: 1;
+      padding: 4px;
+      border-radius: 50%;
       border: 1.5px solid;
       transition: all 0.4s;
       white-space: nowrap;
+      flex-shrink: 0;
     }
     #mode-badge.hiking  { color: var(--green);  border-color: var(--green);  background: rgba(63,185,80,0.12); }
     #mode-badge.browsing{ color: var(--blue);   border-color: var(--blue);   background: rgba(88,166,255,0.12); }
@@ -572,7 +571,7 @@
 
   <div id="top-bar">
     <div id="park-name">🥾 Trail Navigator</div>
-    <div id="mode-badge" class="browsing">Browsing</div>
+    <div id="mode-badge" class="browsing">🗺</div>
     <button id="legend-btn" title="Trail legend">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1055,7 +1054,7 @@ function setMode(mode) {
   const wrapper = document.getElementById('map-rotate-wrapper');
 
   if (hiking) {
-    badge.textContent = '⛰ Hiking';
+    badge.textContent = '⛰';
     badge.className   = 'hiking';
     document.getElementById('go-to-park-btn').classList.add('hidden');
     if (!wasHiking) {
@@ -1064,7 +1063,7 @@ function setMode(mode) {
       checkCompassOnHikingStart();
     }
   } else {
-    badge.textContent = '🗺 Browsing';
+    badge.textContent = '🗺';
     badge.className   = 'browsing';
     showCompassBtn(false);
     clearTimeout(compassCheckTimer);
